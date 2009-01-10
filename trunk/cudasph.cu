@@ -48,6 +48,25 @@
     Host code
 */
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #ifdef _WIN32
 #  define WINDOWS_LEAN_AND_MEAN
 #  define NOMINMAX
@@ -74,6 +93,7 @@
 #include <cutil_gl_error.h>
 #include <cuda_gl_interop.h>
 
+#include <particle.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 // constants
@@ -82,6 +102,16 @@ const unsigned int window_height = 512;
 
 const unsigned int mesh_width = 256;
 const unsigned int mesh_height = 256;
+
+const int maxVelocity = 10;
+const int minVelocity = -10;
+
+const unsigned int numberOfParticles = 30;
+
+Vector3D boundary;
+
+Particle* particleArray_h = (Particle*) malloc(numberOfParticles*sizeof(Particle));
+Particle* particleArray_d;
 
 // vbo variables
 GLuint vbo;
@@ -96,7 +126,12 @@ float translate_z = -3.0;
 
 ////////////////////////////////////////////////////////////////////////////////
 // kernels
-#include <cudasph_kernel.cu>
+#include <particleInteraction_kernel.cu>
+#include <updatePosition_kernel.cu>
+
+void initializeParticles();
+void copyParticlesFromHostToDevice();
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // declaration, forward
@@ -128,6 +163,34 @@ int main( int argc, char** argv)
     CUT_EXIT(argc, argv);
 }
 
+
+void initializeParticles()
+{
+	boundary.x = 256;
+	boundary.y = 256;
+	boundary.z = 256;
+
+	for(unsigned int i = 0; i < numberOfParticles; i++)
+	{
+		particleArray_h[i].position.x = (rand() / ((unsigned)RAND_MAX + 1)) * (float)boundary.x;
+		particleArray_h[i].position.y = (rand() / ((unsigned)RAND_MAX + 1)) * (float)boundary.y;
+		particleArray_h[i].position.z = (rand() / ((unsigned)RAND_MAX + 1)) * (float)boundary.z;
+
+		particleArray_h[i].velocity.x = ((rand() / ((unsigned)RAND_MAX + 1)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
+		particleArray_h[i].velocity.y = ((rand() / ((unsigned)RAND_MAX + 1)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
+		particleArray_h[i].velocity.z = ((rand() / ((unsigned)RAND_MAX + 1)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
+	}
+}
+
+void copyParticlesFromHostToDevice()
+{
+	int size = numberOfParticles*sizeof(Particle);
+
+	cudaMalloc((void**)&particleArray_d, size);
+
+	cudaMemcpy(particleArray_d, particleArray_h, size, cudaMemcpyHostToDevice);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 //! Run a simple test for CUDA
 ////////////////////////////////////////////////////////////////////////////////
@@ -156,6 +219,8 @@ void runTest( int argc, char** argv)
     createVBO( &vbo);
 
     // run the cuda part
+    initializeParticles();
+    copyParticlesFromHostToDevice();
     runCuda( vbo);
 
     // check result of Cuda step
@@ -175,9 +240,10 @@ void runCuda( GLuint vbo)
     CUDA_SAFE_CALL(cudaGLMapBufferObject( (void**)&dptr, vbo));
 
     // execute the kernel
-    dim3 block(8, 8, 1);
-    dim3 grid(mesh_width / block.x, mesh_height / block.y, 1);
-    kernel<<< grid, block>>>(dptr, mesh_width, mesh_height, anim);
+    dim3 block(1, 1, 1);
+    dim3 grid(numberOfParticles / block.x, 1, 1);
+    //particleInteraction<<< grid, block>>>(dptr, mesh_width, mesh_height, anim);
+    updatePosition<<< grid, block>>>(boundary, particleArray_d);
 
     // unmap buffer object
     CUDA_SAFE_CALL(cudaGLUnmapBufferObject( vbo));
