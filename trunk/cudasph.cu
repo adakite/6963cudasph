@@ -33,7 +33,7 @@
  * the above Disclaimer and U.S. Government End Users Notice.
  */
 
-/* 
+/*
     This example demonstrates how to use the Cuda OpenGL bindings to
     dynamically modify a vertex buffer using a Cuda kernel.
 
@@ -96,7 +96,7 @@ float translate_z = -3.0;
 
 ////////////////////////////////////////////////////////////////////////////////
 // kernels
-#include <simpleGL_kernel.cu>
+#include <cudasph_kernel.cu>
 
 ////////////////////////////////////////////////////////////////////////////////
 // declaration, forward
@@ -190,7 +190,7 @@ CUTBoolean initGL()
 {
     // initialize necessary OpenGL extensions
     glewInit();
-    if (! glewIsSupported( "GL_VERSION_2_0 " 
+    if (! glewIsSupported( "GL_VERSION_2_0 "
         "GL_ARB_pixel_buffer_object"
 		)) {
         fprintf( stderr, "ERROR: Support for necessary OpenGL extensions missing.");

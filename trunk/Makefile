@@ -34,9 +34,9 @@
 ################################################################################
 
 # Add source files here
-EXECUTABLE	:= simpleGL
+EXECUTABLE	:= cudasph
 # Cuda source files (compiled with cudacc)
-CUFILES		:= simpleGL.cu
+CUFILES		:= cudasph.cu
 
 # Additional compiler flags and LIBs to include
 USEGLLIB	:= 1
