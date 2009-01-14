@@ -153,6 +153,10 @@ void initializeParticles()
 		particleArray_h[i].position.y = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)2*boundary.y)- (float)boundary.y;
 		particleArray_h[i].position.z = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)2*boundary.z)- (float)boundary.z;
 
+		particleArray_h[i].color.x = (rand() / ((unsigned)RAND_MAX + 1.0));
+		particleArray_h[i].color.y = (rand() / ((unsigned)RAND_MAX + 1.0));
+		particleArray_h[i].color.z = (rand() / ((unsigned)RAND_MAX + 1.0));
+
 		particleArray_h[i].velocity.x = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
 		particleArray_h[i].velocity.y = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
 		particleArray_h[i].velocity.z = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
@@ -184,7 +188,7 @@ void runTest( int argc, char** argv)
     glutInit( &argc, argv);
     glutInitDisplayMode( GLUT_RGBA | GLUT_DOUBLE);
     glutInitWindowSize( window_width, window_height);
-    glutCreateWindow( "Cuda GL interop");
+    glutCreateWindow( "Cuda Smoothed particle hydrodynamics Simulation");
 
     // initialize GL
     if( CUTFalse == initGL()) {
@@ -329,7 +333,7 @@ void display()
 	for(int i=0; i<numberOfParticles; i++)
 	{
 		glPushMatrix();
-		glColor3f(0.0f,0.0f,0.0f);
+		glColor3f(particleArray_h[i].color.x,particleArray_h[i].color.y,particleArray_h[i].color.z);
 		glTranslatef(particleArray_h[i].position.x,particleArray_h[i].position.y,particleArray_h[i].position.z );
 		glutSolidSphere(particle_size,20,20);
 		glPopMatrix();
