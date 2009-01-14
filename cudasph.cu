@@ -61,6 +61,8 @@
 #include <string.h>
 #include <math.h>
 
+
+
 // includes, GL
 #include <GL/glew.h>
 
@@ -79,24 +81,20 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 // constants
-const unsigned int window_width = 512;
-const unsigned int window_height = 512;
+const unsigned int window_width = 1024;
+const unsigned int window_height = 1024;
 
-const unsigned int mesh_width = 256;
-const unsigned int mesh_height = 256;
+const float particle_size = 0.2f;
 
-const int maxVelocity = 10;
-const int minVelocity = -10;
+const float maxVelocity = 0.1;
+const float minVelocity = -0.1;
 
-const unsigned int numberOfParticles = 30;
+const unsigned int numberOfParticles = 100;
 
 Vector3D boundary;
 
 Particle* particleArray_h = (Particle*) malloc(numberOfParticles*sizeof(Particle));
 Particle* particleArray_d;
-
-// vbo variables
-GLuint vbo;
 
 float anim = 0.0;
 
@@ -104,7 +102,7 @@ float anim = 0.0;
 int mouse_old_x, mouse_old_y;
 int mouse_buttons = 0;
 float rotate_x = 0.0, rotate_y = 0.0;
-float translate_z = -3.0;
+float translate_z = -24.0;
 
 ////////////////////////////////////////////////////////////////////////////////
 // kernels
@@ -121,18 +119,15 @@ void runTest( int argc, char** argv);
 
 // GL functionality
 CUTBoolean initGL();
-void createVBO( GLuint* vbo);
-void deleteVBO( GLuint* vbo);
 
 // rendering callbacks
 void display();
-void keyboard( unsigned char key, int x, int y);
 void mouse(int button, int state, int x, int y);
 void motion(int x, int y);
 
 // Cuda functionality
-void runCuda( GLuint vbo);
-void checkResultCuda( int argc, char** argv, const GLuint& vbo);
+void runCuda();
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -148,19 +143,22 @@ int main( int argc, char** argv)
 
 void initializeParticles()
 {
-	boundary.x = 256;
-	boundary.y = 256;
-	boundary.z = 256;
+	boundary.x = 16;
+	boundary.y = 16;
+	boundary.z = 16;
 
 	for(unsigned int i = 0; i < numberOfParticles; i++)
 	{
-		particleArray_h[i].position.x = (rand() / ((unsigned)RAND_MAX + 1)) * (float)boundary.x;
-		particleArray_h[i].position.y = (rand() / ((unsigned)RAND_MAX + 1)) * (float)boundary.y;
-		particleArray_h[i].position.z = (rand() / ((unsigned)RAND_MAX + 1)) * (float)boundary.z;
+		particleArray_h[i].position.x = (rand() / ((unsigned)RAND_MAX + 1.0)) * (float)boundary.x;
+		particleArray_h[i].position.y = (rand() / ((unsigned)RAND_MAX + 1.0)) * (float)boundary.y;
+		particleArray_h[i].position.z = (rand() / ((unsigned)RAND_MAX + 1.0)) * (float)boundary.z;
 
-		particleArray_h[i].velocity.x = ((rand() / ((unsigned)RAND_MAX + 1)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
-		particleArray_h[i].velocity.y = ((rand() / ((unsigned)RAND_MAX + 1)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
-		particleArray_h[i].velocity.z = ((rand() / ((unsigned)RAND_MAX + 1)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
+		particleArray_h[i].velocity.x = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
+		particleArray_h[i].velocity.y = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
+		particleArray_h[i].velocity.z = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
+
+		printf("Position {%f,%f,%f}\n",particleArray_h[i].position.x,particleArray_h[i].position.y,particleArray_h[i].position.z );
+		printf("Velocity {%f,%f,%f}\n",particleArray_h[i].velocity.x,particleArray_h[i].velocity.y,particleArray_h[i].velocity.z );
 	}
 }
 
@@ -173,6 +171,11 @@ void copyParticlesFromHostToDevice()
 	cudaMemcpy(particleArray_d, particleArray_h, size, cudaMemcpyHostToDevice);
 }
 
+void copyParticlesFromDeviceToHost()
+{
+	int size = numberOfParticles*sizeof(Particle);
+	cudaMemcpy(particleArray_h, particleArray_d, size,cudaMemcpyDeviceToHost);
+}
 ////////////////////////////////////////////////////////////////////////////////
 //! Run a simple test for CUDA
 ////////////////////////////////////////////////////////////////////////////////
@@ -193,20 +196,13 @@ void runTest( int argc, char** argv)
 
     // register callbacks
     glutDisplayFunc( display);
-    glutKeyboardFunc( keyboard);
     glutMouseFunc( mouse);
     glutMotionFunc( motion);
 
-    // create VBO
-    createVBO( &vbo);
-
     // run the cuda part
     initializeParticles();
-    copyParticlesFromHostToDevice();
-    runCuda( vbo);
 
-    // check result of Cuda step
-    checkResultCuda( argc, argv, vbo);
+    runCuda();
 
     // start rendering mainloop
     glutMainLoop();
@@ -215,20 +211,24 @@ void runTest( int argc, char** argv)
 ////////////////////////////////////////////////////////////////////////////////
 //! Run the Cuda part of the computation
 ////////////////////////////////////////////////////////////////////////////////
-void runCuda( GLuint vbo)
+void runCuda()
 {
-    // map OpenGL buffer object for writing from CUDA
-    float4 *dptr;
-    CUDA_SAFE_CALL(cudaGLMapBufferObject( (void**)&dptr, vbo));
 
+	copyParticlesFromHostToDevice();
     // execute the kernel
     dim3 block(1, 1, 1);
     dim3 grid(numberOfParticles / block.x, 1, 1);
     //particleInteraction<<< grid, block>>>(dptr, mesh_width, mesh_height, anim);
     updatePosition<<< grid, block>>>(boundary, particleArray_d);
 
-    // unmap buffer object
-    CUDA_SAFE_CALL(cudaGLUnmapBufferObject( vbo));
+    copyParticlesFromDeviceToHost();
+
+    for(unsigned int i = 0; i < numberOfParticles; i++)
+    {
+		printf("Updated Position {%f,%f,%f}\n",particleArray_h[i].position.x,particleArray_h[i].position.y,particleArray_h[i].position.z );
+		printf("Updated Velocity {%f,%f,%f}\n",particleArray_h[i].velocity.x,particleArray_h[i].velocity.y,particleArray_h[i].velocity.z );
+    }
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -247,7 +247,7 @@ CUTBoolean initGL()
     }
 
     // default initialization
-    glClearColor( 0.0, 0.0, 0.0, 1.0);
+    glClearColor( 1.0, 1.0, 1.0, 1.0);
     glDisable( GL_DEPTH_TEST);
 
     // viewport
@@ -264,46 +264,12 @@ CUTBoolean initGL()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//! Create VBO
-////////////////////////////////////////////////////////////////////////////////
-void createVBO(GLuint* vbo)
-{
-    // create buffer object
-    glGenBuffers( 1, vbo);
-    glBindBuffer( GL_ARRAY_BUFFER, *vbo);
-
-    // initialize buffer object
-    unsigned int size = mesh_width * mesh_height * 4 * sizeof( float);
-    glBufferData( GL_ARRAY_BUFFER, size, 0, GL_DYNAMIC_DRAW);
-
-    glBindBuffer( GL_ARRAY_BUFFER, 0);
-
-    // register buffer object with CUDA
-    CUDA_SAFE_CALL(cudaGLRegisterBufferObject(*vbo));
-
-    CUT_CHECK_ERROR_GL();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//! Delete VBO
-////////////////////////////////////////////////////////////////////////////////
-void deleteVBO( GLuint* vbo)
-{
-    glBindBuffer( 1, *vbo);
-    glDeleteBuffers( 1, vbo);
-
-    CUDA_SAFE_CALL(cudaGLUnregisterBufferObject(*vbo));
-
-    *vbo = 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 //! Display callback
 ////////////////////////////////////////////////////////////////////////////////
 void display()
 {
     // run CUDA kernel to generate vertex positions
-    runCuda(vbo);
+    runCuda();
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -314,14 +280,31 @@ void display()
     glRotatef(rotate_x, 1.0, 0.0, 0.0);
     glRotatef(rotate_y, 0.0, 1.0, 0.0);
 
-    // render from the vbo
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glVertexPointer(4, GL_FLOAT, 0, 0);
+    glEnable(GL_DEPTH_TEST);
 
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glColor3f(1.0, 0.0, 0.0);
-    glDrawArrays(GL_POINTS, 0, mesh_width * mesh_height);
-    glDisableClientState(GL_VERTEX_ARRAY);
+    // Draw the particles
+	for(int i=0; i<numberOfParticles; i++)
+	{
+		printf("Draw {%f,%f,%f}\n",particleArray_h[i].position.x,particleArray_h[i].position.y,particleArray_h[i].position.z );
+		glPushMatrix();
+
+		glColor3f(0.0f,0.0f,0.0f);
+		glTranslatef(particleArray_h[i].position.x,particleArray_h[i].position.y,particleArray_h[i].position.z );
+		glutSolidSphere(particle_size,20,20);
+
+		glPopMatrix();
+	}
+
+	// Draw the ground
+	glColor3f(0.9f, 0.9f, 0.9f);
+	glBegin(GL_QUADS);
+			glVertex3f(-16.0f, 0.0f, -16.0f);
+			glVertex3f(-16.0f, 0.0f,  16.0f);
+			glVertex3f( 16.0f, 0.0f,  16.0f);
+			glVertex3f( 16.0f, 0.0f, -16.0f);
+	glEnd();
+
+
 
     glutSwapBuffers();
     glutPostRedisplay();
@@ -329,17 +312,6 @@ void display()
     anim += 0.01;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-//! Keyboard events handler
-////////////////////////////////////////////////////////////////////////////////
-void keyboard( unsigned char key, int /*x*/, int /*y*/)
-{
-    switch( key) {
-    case( 27) :
-        deleteVBO( &vbo);
-        exit( 0);
-    }
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 //! Mouse event handlers
@@ -374,32 +346,3 @@ void motion(int x, int y)
     mouse_old_y = y;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-//! Check if the result is correct or write data to file for external
-//! regression testing
-////////////////////////////////////////////////////////////////////////////////
-void checkResultCuda( int argc, char** argv, const GLuint& vbo)
-{
-    CUDA_SAFE_CALL(cudaGLUnregisterBufferObject(vbo));
-
-    // map buffer object
-    glBindBuffer( GL_ARRAY_BUFFER_ARB, vbo );
-    float* data = (float*) glMapBuffer( GL_ARRAY_BUFFER, GL_READ_ONLY);
-
-    // check result
-    if( cutCheckCmdLineFlag( argc, (const char**) argv, "regression")) {
-        // write file for regression test
-        CUT_SAFE_CALL( cutWriteFilef( "./data/regression.dat",
-            data, mesh_width * mesh_height * 3, 0.0));
-    }
-
-    // unmap GL buffer object
-    if( ! glUnmapBuffer( GL_ARRAY_BUFFER)) {
-        fprintf( stderr, "Unmap buffer failed.\n");
-        fflush( stderr);
-    }
-
-    CUDA_SAFE_CALL(cudaGLRegisterBufferObject(vbo));
-
-    CUT_CHECK_ERROR_GL();
-}
