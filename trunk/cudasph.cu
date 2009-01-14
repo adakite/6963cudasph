@@ -156,9 +156,6 @@ void initializeParticles()
 		particleArray_h[i].velocity.x = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
 		particleArray_h[i].velocity.y = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
 		particleArray_h[i].velocity.z = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
-
-		printf("Position {%f,%f,%f}\n",particleArray_h[i].position.x,particleArray_h[i].position.y,particleArray_h[i].position.z );
-		printf("Velocity {%f,%f,%f}\n",particleArray_h[i].velocity.x,particleArray_h[i].velocity.y,particleArray_h[i].velocity.z );
 	}
 }
 
@@ -222,13 +219,6 @@ void runCuda()
     updatePosition<<< grid, block>>>(boundary, particleArray_d);
 
     copyParticlesFromDeviceToHost();
-
-    for(unsigned int i = 0; i < numberOfParticles; i++)
-    {
-		printf("Updated Position {%f,%f,%f}\n",particleArray_h[i].position.x,particleArray_h[i].position.y,particleArray_h[i].position.z );
-		printf("Updated Velocity {%f,%f,%f}\n",particleArray_h[i].velocity.x,particleArray_h[i].velocity.y,particleArray_h[i].velocity.z );
-    }
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -338,8 +328,6 @@ void display()
     // Draw the particles
 	for(int i=0; i<numberOfParticles; i++)
 	{
-		printf("Draw {%f,%f,%f}\n",particleArray_h[i].position.x,particleArray_h[i].position.y,particleArray_h[i].position.z );
-
 		glPushMatrix();
 		glColor3f(0.0f,0.0f,0.0f);
 		glTranslatef(particleArray_h[i].position.x,particleArray_h[i].position.y,particleArray_h[i].position.z );
