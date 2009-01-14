@@ -89,7 +89,7 @@ const float particle_size = 0.2f;
 const float maxVelocity = 0.1;
 const float minVelocity = -0.1;
 
-const unsigned int numberOfParticles = 100;
+const unsigned int numberOfParticles = 512;
 
 Vector3D boundary;
 
@@ -102,7 +102,7 @@ float anim = 0.0;
 int mouse_old_x, mouse_old_y;
 int mouse_buttons = 0;
 float rotate_x = 0.0, rotate_y = 0.0;
-float translate_z = -24.0;
+float translate_z = -64.0;
 
 ////////////////////////////////////////////////////////////////////////////////
 // kernels
@@ -149,9 +149,9 @@ void initializeParticles()
 
 	for(unsigned int i = 0; i < numberOfParticles; i++)
 	{
-		particleArray_h[i].position.x = (rand() / ((unsigned)RAND_MAX + 1.0)) * (float)boundary.x;
-		particleArray_h[i].position.y = (rand() / ((unsigned)RAND_MAX + 1.0)) * (float)boundary.y;
-		particleArray_h[i].position.z = (rand() / ((unsigned)RAND_MAX + 1.0)) * (float)boundary.z;
+		particleArray_h[i].position.x = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)2*boundary.x) - (float)boundary.x;
+		particleArray_h[i].position.y = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)2*boundary.y)- (float)boundary.y;
+		particleArray_h[i].position.z = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)2*boundary.z)- (float)boundary.z;
 
 		particleArray_h[i].velocity.x = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
 		particleArray_h[i].velocity.y = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
@@ -256,7 +256,10 @@ CUTBoolean initGL()
     // projection
     glMatrixMode( GL_PROJECTION);
     glLoadIdentity();
-    gluPerspective(60.0, (GLfloat)window_width / (GLfloat) window_height, 0.1, 10.0);
+    //gluPerspective(60.0, (GLfloat)window_width / (GLfloat) window_height, 0.1, 10.0);
+    gluPerspective( /* field of view in degree */ 40.0,
+      /* aspect ratio */ 1.0,
+        /* Z near */ 0.5, /* Z far */ 100.0);
 
     CUT_CHECK_ERROR_GL();
 
@@ -271,7 +274,7 @@ void display()
     // run CUDA kernel to generate vertex positions
     runCuda();
 
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT);
 
     // set view matrix
     glMatrixMode(GL_MODELVIEW);
@@ -280,31 +283,70 @@ void display()
     glRotatef(rotate_x, 1.0, 0.0, 0.0);
     glRotatef(rotate_y, 0.0, 1.0, 0.0);
 
-    glEnable(GL_DEPTH_TEST);
+
+    glDepthMask(GL_FALSE);
+    glEnable(GL_TEXTURE_2D);
+
+
+
+	glPushMatrix();
+	// Draw the Back
+	glColor3f(0.5f, 0.5f, 0.5f);
+	glBegin(GL_QUADS);
+			glVertex3f(-16.0f, -16.0f, -16.0f);
+			glVertex3f(-16.0f, 16.0f, -16.0f);
+			glVertex3f( 16.0f, 16.0f, -16.0f);
+			glVertex3f( 16.0f, -16.0f, -16.0f);
+	glEnd();
+	// Draw the left
+	glColor3f(0.5f, 0.5f, 0.5f);
+	glBegin(GL_QUADS);
+			glVertex3f(-16.0f, 16.0f, 16.0f);
+			glVertex3f(-16.0f, -16.0f, 16.0f);
+			glVertex3f(-16.0f, -16.0f, -16.0f);
+			glVertex3f(-16.0f, 16.0f, -16.0f);
+	glEnd();
+	// Draw the right
+	glColor3f(0.5f, 0.5f, 0.5f);
+	glBegin(GL_QUADS);
+			glVertex3f(16.0f, 16.0f, 16.0f);
+			glVertex3f(16.0f, -16.0f, 16.0f);
+			glVertex3f(16.0f, -16.0f, -16.0f);
+			glVertex3f(16.0f, 16.0f, -16.0f);
+	glEnd();
+	// Draw the top
+	glColor3f(0.7f, 0.7f, 0.7f);
+	glBegin(GL_QUADS);
+			glVertex3f(16.0f, 16.0f, 16.0f);
+			glVertex3f(-16.0f, 16.0f, 16.0f);
+			glVertex3f(-16.0f, 16.0f, -16.0f);
+			glVertex3f(16.0f, 16.0f, -16.0f);
+	glEnd();
+	// Draw the botto
+	glColor3f(0.7f, 0.7f, 0.7f);
+	glBegin(GL_QUADS);
+			glVertex3f(16.0f, -16.0f, 16.0f);
+			glVertex3f(-16.0f, -16.0f, 16.0f);
+			glVertex3f(-16.0f, -16.0f, -16.0f);
+			glVertex3f(16.0f, -16.0f, -16.0f);
+	glEnd();
+	glPopMatrix();
+
+	glDepthMask(GL_TRUE);
+	glDisable(GL_TEXTURE_2D);
 
     // Draw the particles
 	for(int i=0; i<numberOfParticles; i++)
 	{
 		printf("Draw {%f,%f,%f}\n",particleArray_h[i].position.x,particleArray_h[i].position.y,particleArray_h[i].position.z );
-		glPushMatrix();
 
+		glPushMatrix();
 		glColor3f(0.0f,0.0f,0.0f);
 		glTranslatef(particleArray_h[i].position.x,particleArray_h[i].position.y,particleArray_h[i].position.z );
 		glutSolidSphere(particle_size,20,20);
-
 		glPopMatrix();
+
 	}
-
-	// Draw the ground
-	glColor3f(0.9f, 0.9f, 0.9f);
-	glBegin(GL_QUADS);
-			glVertex3f(-16.0f, 0.0f, -16.0f);
-			glVertex3f(-16.0f, 0.0f,  16.0f);
-			glVertex3f( 16.0f, 0.0f,  16.0f);
-			glVertex3f( 16.0f, 0.0f, -16.0f);
-	glEnd();
-
-
 
     glutSwapBuffers();
     glutPostRedisplay();
