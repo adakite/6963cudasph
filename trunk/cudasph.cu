@@ -84,7 +84,7 @@
 const unsigned int window_width = 1024;
 const unsigned int window_height = 1024;
 
-const float particle_size = 0.2f;
+const float particle_size = 0.5f;
 
 const float maxVelocity = 0.1;
 const float minVelocity = -0.1;
@@ -240,6 +240,7 @@ CUTBoolean initGL()
         return CUTFalse;
     }
 
+
     // default initialization
     glClearColor( 1.0, 1.0, 1.0, 1.0);
     glDisable( GL_DEPTH_TEST);
@@ -269,6 +270,13 @@ void display()
     runCuda();
 
     glClear(GL_COLOR_BUFFER_BIT);
+    glEnable(GL_LIGHTING);
+    glEnable(GL_COLOR_MATERIAL);
+    glEnable(GL_LIGHT0);
+
+    GLfloat lightpos[] = {5.0, 5.0, -16.0, 1.0};
+    glLightfv(GL_LIGHT0, GL_POSITION, lightpos);
+
 
     // set view matrix
     glMatrixMode(GL_MODELVIEW);
@@ -279,13 +287,13 @@ void display()
 
 
     glDepthMask(GL_FALSE);
-    glEnable(GL_TEXTURE_2D);
+
 
 
 
 	glPushMatrix();
 	// Draw the Back
-	glColor3f(0.5f, 0.5f, 0.5f);
+	glColor3f(0.7f, 0.7f, 0.7f);
 	glBegin(GL_QUADS);
 			glVertex3f(-16.0f, -16.0f, -16.0f);
 			glVertex3f(-16.0f, 16.0f, -16.0f);
@@ -293,7 +301,7 @@ void display()
 			glVertex3f( 16.0f, -16.0f, -16.0f);
 	glEnd();
 	// Draw the left
-	glColor3f(0.5f, 0.5f, 0.5f);
+	glColor3f(0.7f, 0.7f, 0.7f);
 	glBegin(GL_QUADS);
 			glVertex3f(-16.0f, 16.0f, 16.0f);
 			glVertex3f(-16.0f, -16.0f, 16.0f);
@@ -301,7 +309,7 @@ void display()
 			glVertex3f(-16.0f, 16.0f, -16.0f);
 	glEnd();
 	// Draw the right
-	glColor3f(0.5f, 0.5f, 0.5f);
+	glColor3f(0.7f, 0.7f, 0.7f);
 	glBegin(GL_QUADS);
 			glVertex3f(16.0f, 16.0f, 16.0f);
 			glVertex3f(16.0f, -16.0f, 16.0f);
@@ -327,7 +335,6 @@ void display()
 	glPopMatrix();
 
 	glDepthMask(GL_TRUE);
-	glDisable(GL_TEXTURE_2D);
 
     // Draw the particles
 	for(int i=0; i<numberOfParticles; i++)
@@ -339,6 +346,8 @@ void display()
 		glPopMatrix();
 
 	}
+
+	//glDisable ( GL_LIGHTING ) ;
 
     glutSwapBuffers();
     glutPostRedisplay();
