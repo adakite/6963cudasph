@@ -77,6 +77,7 @@
 #include <cutil_gl_error.h>
 #include <cuda_gl_interop.h>
 
+#include <sphere.c>
 #include <particle.h>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,6 +93,9 @@ const float minVelocity = -0.1;
 const unsigned int numberOfParticles = 512;
 
 Vector3D boundary;
+
+// vbo variables
+GLuint vbo;
 
 Particle* particleArray_h = (Particle*) malloc(numberOfParticles*sizeof(Particle));
 Particle* particleArray_d;
@@ -119,6 +123,8 @@ void runTest( int argc, char** argv);
 
 // GL functionality
 CUTBoolean initGL();
+void createVBO(GLuint* vbo);
+void deleteVBO(GLuint* vbo);
 
 // rendering callbacks
 void display();
@@ -126,7 +132,7 @@ void mouse(int button, int state, int x, int y);
 void motion(int x, int y);
 
 // Cuda functionality
-void runCuda();
+void runCuda(GLuint vbo);
 
 
 
@@ -135,7 +141,7 @@ void runCuda();
 ////////////////////////////////////////////////////////////////////////////////
 int main( int argc, char** argv)
 {
-    runTest( argc, argv);
+	runTest( argc, argv);
 
     CUT_EXIT(argc, argv);
 }
@@ -143,9 +149,9 @@ int main( int argc, char** argv)
 
 void initializeParticles()
 {
-	boundary.x = 16;
-	boundary.y = 16;
-	boundary.z = 16;
+	boundary.x = 32;
+	boundary.y = 32;
+	boundary.z = 32;
 
 	for(unsigned int i = 0; i < numberOfParticles; i++)
 	{
@@ -202,8 +208,12 @@ void runTest( int argc, char** argv)
 
     // run the cuda part
     initializeParticles();
+    copyParticlesFromHostToDevice();
 
-    runCuda();
+    // create VBO
+	createVBO(&vbo);
+
+    runCuda(vbo);
 
     // start rendering mainloop
     glutMainLoop();
@@ -212,17 +222,21 @@ void runTest( int argc, char** argv)
 ////////////////////////////////////////////////////////////////////////////////
 //! Run the Cuda part of the computation
 ////////////////////////////////////////////////////////////////////////////////
-void runCuda()
+void runCuda(GLuint vbo)
 {
+	// map OpenGL buffer object for writing from CUDA
+	float4 *dptr;
+	CUDA_SAFE_CALL(cudaGLMapBufferObject( (void**)&dptr, vbo));
 
-	copyParticlesFromHostToDevice();
     // execute the kernel
     dim3 block(1, 1, 1);
     dim3 grid(numberOfParticles / block.x, 1, 1);
     //particleInteraction<<< grid, block>>>(dptr, mesh_width, mesh_height, anim);
-    updatePosition<<< grid, block>>>(boundary, particleArray_d);
+    updatePosition<<< grid, block>>>(dptr, boundary, particleArray_d);
 
-    copyParticlesFromDeviceToHost();
+    //copyParticlesFromDeviceToHost();
+    // unmap buffer object
+	CUDA_SAFE_CALL(cudaGLUnmapBufferObject(vbo));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -262,12 +276,46 @@ CUTBoolean initGL()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+//! Create VBO
+////////////////////////////////////////////////////////////////////////////////
+void createVBO(GLuint* vbo)
+{
+    // create buffer object
+    glGenBuffers( 1, vbo);
+    glBindBuffer( GL_ARRAY_BUFFER, *vbo);
+
+    // initialize buffer object
+    unsigned int size = numberOfParticles * SPHERE_VERTICES_SIZE * 4 * sizeof(float);
+    glBufferData( GL_ARRAY_BUFFER, size, 0, GL_DYNAMIC_DRAW);
+
+    glBindBuffer( GL_ARRAY_BUFFER, 0);
+
+    // register buffer object with CUDA
+    CUDA_SAFE_CALL(cudaGLRegisterBufferObject(*vbo));
+
+    CUT_CHECK_ERROR_GL();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//! Delete VBO
+////////////////////////////////////////////////////////////////////////////////
+void deleteVBO( GLuint* vbo)
+{
+    glBindBuffer( 1, *vbo);
+    glDeleteBuffers( 1, vbo);
+
+    CUDA_SAFE_CALL(cudaGLUnregisterBufferObject(*vbo));
+
+    *vbo = 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 //! Display callback
 ////////////////////////////////////////////////////////////////////////////////
 void display()
 {
     // run CUDA kernel to generate vertex positions
-    runCuda();
+    runCuda(vbo);
 
     glClear(GL_COLOR_BUFFER_BIT);
     glEnable(GL_LIGHTING);
@@ -286,10 +334,22 @@ void display()
     glRotatef(rotate_y, 0.0, 1.0, 0.0);
 
 
+    // render from the vbo
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glVertexPointer(4, GL_FLOAT, 0, 0);
+
+	glEnableClientState(GL_VERTEX_ARRAY);
+	glColor3f(1.0, 0.0, 0.0);
+	glDrawArrays(GL_SPHERE, 0, numberOfParticles);
+	glDisableClientState(GL_VERTEX_ARRAY);
+
+	glutSwapBuffers();
+	glutPostRedisplay();
+
+
+
+
     glDepthMask(GL_FALSE);
-
-
-
 
 	glPushMatrix();
 	// Draw the Back
@@ -336,6 +396,8 @@ void display()
 
 	glDepthMask(GL_TRUE);
 
+	/*
+
     // Draw the particles
 	for(int i=0; i<numberOfParticles; i++)
 	{
@@ -351,6 +413,7 @@ void display()
 
     glutSwapBuffers();
     glutPostRedisplay();
+    */
 
     anim += 0.01;
 }
