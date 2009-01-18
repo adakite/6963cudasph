@@ -91,7 +91,7 @@ const float maxVelocity = 0.1;
 const float minVelocity = -0.1;
 const float boundary= 32.0;
 
-const unsigned int numberOfParticles = 5120;
+const unsigned int numberOfParticles = 10240;
 const unsigned int numberOfParticlesPerBlock = 512;
 const unsigned int numberOfCells= ((int)floor((boundary)/cell_size))*((int)floor((boundary)/cell_size))*((int)floor((boundary)/cell_size));
 
@@ -320,7 +320,7 @@ void runCuda(GLuint vbo)
 {
 	// map OpenGL buffer object for writing from CUDA
 	float4 *dptr;
-	CUDA_SAFE_CALL(cudaGLMapBufferObject( (void**)&dptr, vbo));
+	cudaGLMapBufferObject( (void**)&dptr, vbo);
 
     // execute the kernel
     dim3 block(1, 1, 1);
@@ -330,7 +330,7 @@ void runCuda(GLuint vbo)
 
     //copyParticlesFromDeviceToHost();
     // unmap buffer object
-	CUDA_SAFE_CALL(cudaGLUnmapBufferObject(vbo));
+	cudaGLUnmapBufferObject(vbo);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -365,7 +365,7 @@ CUTBoolean initGL()
         /* Z near */ 0.5, /* Z far */ 150.0);
 
 
-    CUT_CHECK_ERROR_GL();
+    //CUT_CHECK_ERROR_GL();
 
     return CUTTrue;
 }
@@ -388,9 +388,9 @@ void createVBO(GLuint* vbo)
     glBindBuffer( GL_ARRAY_BUFFER, 0);
 
     // register buffer object with CUDA
-    CUDA_SAFE_CALL(cudaGLRegisterBufferObject(*vbo));
+    cudaGLRegisterBufferObject(*vbo);
 
-    CUT_CHECK_ERROR_GL();
+    //CUT_CHECK_ERROR_GL();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -401,7 +401,7 @@ void deleteVBO( GLuint* vbo)
     glBindBuffer( 1, *vbo);
     glDeleteBuffers( 1, vbo);
 
-    CUDA_SAFE_CALL(cudaGLUnregisterBufferObject(*vbo));
+    cudaGLUnregisterBufferObject(*vbo);
 
     *vbo = 0;
 }
