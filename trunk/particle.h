@@ -1,8 +1,18 @@
-#include <vector3D.h>
 
 typedef struct
 {
-	Vector3D position;
-	Vector3D velocity;
-	Vector3D color;
+	float3 position;
+	float3 velocity;
+	float3 color;
+	int cellidx;
+	int next;
 } Particle;
+
+typedef struct
+{
+	int3 coordinates;
+	int head;
+} Cell;
+
+
+

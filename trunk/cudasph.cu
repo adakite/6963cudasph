@@ -2,7 +2,6 @@
  * Copyright 1993-2007 NVIDIA Corporation.  All rights reserved.
  *
  * NOTICE TO USER:
- *
  * This source code is subject to NVIDIA ownership rights under U.S. and
  * international Copyright laws.  Users and possessors of this source code
  * are hereby granted a nonexclusive, royalty-free license to use this code
@@ -86,36 +85,53 @@ const unsigned int window_width = 1024;
 const unsigned int window_height = 1024;
 
 const float particle_size = 0.5f;
+const float cell_size = 2.0f* particle_size;
 
 const float maxVelocity = 0.1;
 const float minVelocity = -0.1;
+const float boundary= 32.0;
 
-const unsigned int numberOfParticles = 512;
+const unsigned int numberOfParticles = 5120;
+const unsigned int numberOfParticlesPerBlock = 512;
+const unsigned int numberOfCells= ((int)floor((boundary)/cell_size))*((int)floor((boundary)/cell_size))*((int)floor((boundary)/cell_size));
 
-Vector3D boundary;
+
+float anim = 0.0;
 
 // vbo variables
 GLuint vbo;
 
+// particle arrays
 Particle* particleArray_h = (Particle*) malloc(numberOfParticles*sizeof(Particle));
 Particle* particleArray_d;
 
-float anim = 0.0;
+// cell arrays
+Cell* cellArray_h = (Cell*) malloc(numberOfCells*sizeof(Cell));
+Cell* cellArray_d;
+
 
 // mouse controls
 int mouse_old_x, mouse_old_y;
 int mouse_buttons = 0;
 float rotate_x = 0.0, rotate_y = 0.0;
-float translate_z = -64.0;
+float translate_z = -84.0;
+float translate_x = -16.0;
+float translate_y = -16.0;
 
 ////////////////////////////////////////////////////////////////////////////////
 // kernels
-#include <particleInteraction_kernel.cu>
 #include <updatePosition_kernel.cu>
 
 void initializeParticles();
-void copyParticlesFromHostToDevice();
+void initializeCells();
+void initializeNeighbors();
 
+
+void copyParticlesFromHostToDevice();
+void copyCellsFromHostToDevice();
+
+void copyParticlesFromDeviceToHost();
+void copyCellsFromDeviceToHost();
 
 ////////////////////////////////////////////////////////////////////////////////
 // declaration, forward
@@ -126,9 +142,11 @@ CUTBoolean initGL();
 void createVBO(GLuint* vbo);
 void deleteVBO(GLuint* vbo);
 
+
 // rendering callbacks
 void display();
 void mouse(int button, int state, int x, int y);
+void keyboard( unsigned char key, int x, int y);
 void motion(int x, int y);
 
 // Cuda functionality
@@ -149,15 +167,11 @@ int main( int argc, char** argv)
 
 void initializeParticles()
 {
-	boundary.x = 32;
-	boundary.y = 32;
-	boundary.z = 32;
-
 	for(unsigned int i = 0; i < numberOfParticles; i++)
 	{
-		particleArray_h[i].position.x = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)2*boundary.x) - (float)boundary.x;
-		particleArray_h[i].position.y = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)2*boundary.y)- (float)boundary.y;
-		particleArray_h[i].position.z = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)2*boundary.z)- (float)boundary.z;
+		particleArray_h[i].position.x = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)boundary);
+		particleArray_h[i].position.y = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)boundary);
+		particleArray_h[i].position.z = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)boundary);
 
 		particleArray_h[i].color.x = (rand() / ((unsigned)RAND_MAX + 1.0));
 		particleArray_h[i].color.y = (rand() / ((unsigned)RAND_MAX + 1.0));
@@ -166,6 +180,66 @@ void initializeParticles()
 		particleArray_h[i].velocity.x = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
 		particleArray_h[i].velocity.y = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
 		particleArray_h[i].velocity.z = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
+
+		int cell_x= (int) floor(particleArray_h[i].position.x/ cell_size);
+		int cell_y= (int) floor(particleArray_h[i].position.y/ cell_size);
+		int cell_z= (int) floor(particleArray_h[i].position.z/ cell_size);
+
+		particleArray_h[i].cellidx= (cell_x*boundary+cell_y)*boundary + cell_z;
+		particleArray_h[i].next= -1;
+	}
+
+}
+
+void initializeCells()
+{
+	for(unsigned int i = 0; i < boundary; i++)
+	{
+		for(unsigned int j = 0; j < boundary; j++)
+		{
+			for(unsigned int k = 0; k < boundary; k++)
+			{
+				int cellidx=(i*boundary+j)*boundary + k;
+				cellArray_h[cellidx].coordinates.x=i;
+				cellArray_h[cellidx].coordinates.y=j;
+				cellArray_h[cellidx].coordinates.z=k;
+
+				int minp=numberOfParticles;
+				for(unsigned int p = 0; p < numberOfParticles; p++)
+				{
+					if(particleArray_h[p].cellidx== cellidx && p<minp)
+					{
+						minp=p;
+					}
+				}
+
+				if (minp==numberOfParticles)
+				{
+					minp=-1;
+				}
+				cellArray_h[cellidx].head=minp;
+			}
+		}
+	}
+}
+
+void initializeNeighbors()
+{
+	for(unsigned int p = 0; p < numberOfParticles; p++)
+	{
+		int minq=numberOfParticles;
+		for(unsigned int q = 0; q < numberOfParticles; q++)
+		{
+			if(particleArray_h[p].cellidx==particleArray_h[q].cellidx && q<minq && q>p)
+			{
+				minq=q;
+			}
+		}
+		if (minq==numberOfParticles)
+		{
+			minq=-1;
+		}
+		particleArray_h[p].next=minq;
 	}
 }
 
@@ -182,6 +256,21 @@ void copyParticlesFromDeviceToHost()
 {
 	int size = numberOfParticles*sizeof(Particle);
 	cudaMemcpy(particleArray_h, particleArray_d, size,cudaMemcpyDeviceToHost);
+}
+
+void copyCellsFromHostToDevice()
+{
+	int size = numberOfCells*sizeof(Cell);
+
+	cudaMalloc((void**)&cellArray_d, size);
+
+	cudaMemcpy(cellArray_d, cellArray_h, size, cudaMemcpyHostToDevice);
+}
+
+void copyCellsFromDeviceToHost()
+{
+	int size = numberOfCells*sizeof(Cell);
+	cudaMemcpy(cellArray_h, cellArray_d, size,cudaMemcpyDeviceToHost);
 }
 ////////////////////////////////////////////////////////////////////////////////
 //! Run a simple test for CUDA
@@ -203,15 +292,20 @@ void runTest( int argc, char** argv)
 
     // register callbacks
     glutDisplayFunc( display);
+    glutKeyboardFunc( keyboard);
     glutMouseFunc( mouse);
     glutMotionFunc( motion);
 
-    // run the cuda part
     initializeParticles();
-    copyParticlesFromHostToDevice();
+    initializeCells();
+    initializeNeighbors();
 
     // create VBO
 	createVBO(&vbo);
+
+    // run the cuda part
+    copyParticlesFromHostToDevice();
+    copyCellsFromHostToDevice();
 
     runCuda(vbo);
 
@@ -229,10 +323,10 @@ void runCuda(GLuint vbo)
 	CUDA_SAFE_CALL(cudaGLMapBufferObject( (void**)&dptr, vbo));
 
     // execute the kernel
-    dim3 block(1, 1, 1);
-    dim3 grid(numberOfParticles / block.x, 1, 1);
+    dim3 block(numberOfParticlesPerBlock, 1, 1);
+    dim3 grid(numberOfParticles / numberOfParticlesPerBlock, 1, 1);
     //particleInteraction<<< grid, block>>>(dptr, mesh_width, mesh_height, anim);
-    updatePosition<<< grid, block>>>(dptr, boundary, particleArray_d);
+    updatePosition<<< grid, block>>>(dptr, boundary, particleArray_d,cellArray_d);
 
     //copyParticlesFromDeviceToHost();
     // unmap buffer object
@@ -268,12 +362,15 @@ CUTBoolean initGL()
     //gluPerspective(60.0, (GLfloat)window_width / (GLfloat) window_height, 0.1, 10.0);
     gluPerspective( /* field of view in degree */ 40.0,
       /* aspect ratio */ 1.0,
-        /* Z near */ 0.5, /* Z far */ 100.0);
+        /* Z near */ 0.5, /* Z far */ 150.0);
+
 
     CUT_CHECK_ERROR_GL();
 
     return CUTTrue;
 }
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //! Create VBO
@@ -314,7 +411,7 @@ void deleteVBO( GLuint* vbo)
 ////////////////////////////////////////////////////////////////////////////////
 void display()
 {
-    // run CUDA kernel to generate vertex positions
+
     runCuda(vbo);
 
     glClear(GL_COLOR_BUFFER_BIT);
@@ -322,16 +419,65 @@ void display()
     glEnable(GL_COLOR_MATERIAL);
     glEnable(GL_LIGHT0);
 
-    GLfloat lightpos[] = {5.0, 5.0, -16.0, 1.0};
+    GLfloat lightpos[] = {16.0, 16.0, 16.0, 1.0};
     glLightfv(GL_LIGHT0, GL_POSITION, lightpos);
-
 
     // set view matrix
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    glTranslatef(0.0, 0.0, translate_z);
+    glTranslatef(translate_x, translate_y, translate_z);
+
     glRotatef(rotate_x, 1.0, 0.0, 0.0);
     glRotatef(rotate_y, 0.0, 1.0, 0.0);
+
+    //Draw the walls
+
+    glDepthMask(GL_FALSE);
+
+	glPushMatrix();
+	// Draw the Back
+	glColor3f(0.7f, 0.7f, 0.7f);
+	glBegin(GL_QUADS);
+			glVertex3f(0.0f, 0.0f, 0.0f);
+			glVertex3f(0.0f, 32.0f, 0.0f);
+			glVertex3f( 32.0f, 32.0f, 0.0f);
+			glVertex3f( 32.0f, 0.0f, 0.0f);
+	glEnd();
+	// Draw the left
+	glColor3f(0.7f, 0.7f, 0.7f);
+	glBegin(GL_QUADS);
+			glVertex3f(0.0f, 32.0f, 32.0f);
+			glVertex3f(0.0f, 0.0f, 32.0f);
+			glVertex3f(0.0f, 0.0f, 0.0f);
+			glVertex3f(0.0f, 32.0f, 0.0f);
+	glEnd();
+	// Draw the right
+	glColor3f(0.7f, 0.7f, 0.7f);
+	glBegin(GL_QUADS);
+			glVertex3f(32.0f, 32.0f, 32.0f);
+			glVertex3f(32.0f, 0.0f, 32.0f);
+			glVertex3f(32.0f, 0.0f, 0.0f);
+			glVertex3f(32.0f, 32.0f, 0.0f);
+	glEnd();
+	// Draw the top
+	glColor3f(0.7f, 0.7f, 0.7f);
+	glBegin(GL_QUADS);
+			glVertex3f(32.0f, 32.0f, 32.0f);
+			glVertex3f(0.0f, 32.0f, 32.0f);
+			glVertex3f(0.0f, 32.0f, 0.0f);
+			glVertex3f(32.0f, 32.0f, 0.0f);
+	glEnd();
+	// Draw the bottom
+	glColor3f(0.7f, 0.7f, 0.7f);
+	glBegin(GL_QUADS);
+			glVertex3f(32.0f, 0.0f, 32.0f);
+			glVertex3f(0.0f, 0.0f, 32.0f);
+			glVertex3f(0.0f, 0.0f, 0.0f);
+			glVertex3f(32.0f, 0.0f, 0.0f);
+	glEnd();
+	glPopMatrix();
+
+	glDepthMask(GL_TRUE);
 
 
     // render from the vbo
@@ -346,56 +492,6 @@ void display()
 	glutSwapBuffers();
 	glutPostRedisplay();
 
-
-
-
-    glDepthMask(GL_FALSE);
-
-	glPushMatrix();
-	// Draw the Back
-	glColor3f(0.7f, 0.7f, 0.7f);
-	glBegin(GL_QUADS);
-			glVertex3f(-16.0f, -16.0f, -16.0f);
-			glVertex3f(-16.0f, 16.0f, -16.0f);
-			glVertex3f( 16.0f, 16.0f, -16.0f);
-			glVertex3f( 16.0f, -16.0f, -16.0f);
-	glEnd();
-	// Draw the left
-	glColor3f(0.7f, 0.7f, 0.7f);
-	glBegin(GL_QUADS);
-			glVertex3f(-16.0f, 16.0f, 16.0f);
-			glVertex3f(-16.0f, -16.0f, 16.0f);
-			glVertex3f(-16.0f, -16.0f, -16.0f);
-			glVertex3f(-16.0f, 16.0f, -16.0f);
-	glEnd();
-	// Draw the right
-	glColor3f(0.7f, 0.7f, 0.7f);
-	glBegin(GL_QUADS);
-			glVertex3f(16.0f, 16.0f, 16.0f);
-			glVertex3f(16.0f, -16.0f, 16.0f);
-			glVertex3f(16.0f, -16.0f, -16.0f);
-			glVertex3f(16.0f, 16.0f, -16.0f);
-	glEnd();
-	// Draw the top
-	glColor3f(0.7f, 0.7f, 0.7f);
-	glBegin(GL_QUADS);
-			glVertex3f(16.0f, 16.0f, 16.0f);
-			glVertex3f(-16.0f, 16.0f, 16.0f);
-			glVertex3f(-16.0f, 16.0f, -16.0f);
-			glVertex3f(16.0f, 16.0f, -16.0f);
-	glEnd();
-	// Draw the botto
-	glColor3f(0.7f, 0.7f, 0.7f);
-	glBegin(GL_QUADS);
-			glVertex3f(16.0f, -16.0f, 16.0f);
-			glVertex3f(-16.0f, -16.0f, 16.0f);
-			glVertex3f(-16.0f, -16.0f, -16.0f);
-			glVertex3f(16.0f, -16.0f, -16.0f);
-	glEnd();
-	glPopMatrix();
-
-	glDepthMask(GL_TRUE);
-
 	/*
 
     // Draw the particles
@@ -404,6 +500,7 @@ void display()
 		glPushMatrix();
 		glColor3f(particleArray_h[i].color.x,particleArray_h[i].color.y,particleArray_h[i].color.z);
 		glTranslatef(particleArray_h[i].position.x,particleArray_h[i].position.y,particleArray_h[i].position.z );
+
 		glutSolidSphere(particle_size,20,20);
 		glPopMatrix();
 
@@ -417,7 +514,19 @@ void display()
 
     anim += 0.01;
 }
+////////////////////////////////////////////////////////////////////////////////
+//! Keyboard events handler
+////////////////////////////////////////////////////////////////////////////////
+void keyboard( unsigned char key, int /*x*/, int /*y*/)
+{
+	 switch( key)
+	 {
+	    case( 27) :
 
+	        exit( 0);
+	 }
+
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 //! Mouse event handlers
