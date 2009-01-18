@@ -120,7 +120,7 @@ float translate_y = -16.0;
 
 ////////////////////////////////////////////////////////////////////////////////
 // kernels
-#include <updatePosition_kernel.cu>
+#include <runKernel.cu>
 
 void initializeParticles();
 void initializeCells();
@@ -326,7 +326,7 @@ void runCuda(GLuint vbo)
     dim3 block(1, 1, 1);
     dim3 grid(numberOfParticles / block.x, 1, 1);
     //particleInteraction<<< grid, block>>>(dptr, mesh_width, mesh_height, anim);
-    updatePosition<<< grid, block>>>(dptr, boundary, particleArray_d,cellArray_d);
+    runKernel<<< grid, block>>>(dptr, boundary, particleArray_d,cellArray_d);
 
     //copyParticlesFromDeviceToHost();
     // unmap buffer object
