@@ -6,8 +6,7 @@
  * international Copyright laws.  Users and possessors of this source code
  * are hereby granted a nonexclusive, royalty-free license to use this code
  * in individual and commercial software.
-
-*
+ *
  * NVIDIA MAKES NO REPRESENTATION ABOUT THE SUITABILITY OF THIS SOURCE
  * CODE FOR ANY PURPOSE.  IT IS PROVIDED "AS IS" WITHOUT EXPRESS OR
  * IMPLIED WARRANTY OF ANY KIND.  NVIDIA DISCLAIMS ALL WARRANTIES WITH

@@ -1,12 +1,37 @@
 #include "cutil_math.h"
 
-__device__ float3 collisionsInCell(int id, int cellidx, Particle* particleArray, Cell* cellArray)
+__device__ float3 evaluateCollision(int id, int neighbor, Particle* particleArray)
 {
 	float3 force=make_float3(0.0f);
 
+
+
 	return force;
 }
-__device__ void computeInteractions(int id,float boundary, Particle* particleArray, Cell* cellArray)
+
+__device__ float3 collisionsInCell(int id, int cellidx,int maxParticlesPerCell, Particle* particleArray, Cell* cellArray)
+{
+	float3 force=make_float3(0.0f);
+
+	Cell cell= cellArray[cellidx];
+
+	//Iterate over particles in this cell
+
+	for (int i=0; i<maxParticlesPerCell; i++)
+	{
+		//Get neighbor particle index
+		int neighboridx= cell.particleidxs[i];
+
+		//If neighbor exist and not collide with itself
+		if(neighboridx!= -1 && neighboridx!= id)
+		{
+			force+= evaluateCollision(id, neighboridx, particleArray);
+		}
+	}
+
+	return force;
+}
+__device__ void computeInteractions(int id,int maxParticlesPerCell,float boundary, Particle* particleArray, Cell* cellArray)
 {
 
 	// Get cell index of this particle
@@ -24,11 +49,13 @@ __device__ void computeInteractions(int id,float boundary, Particle* particleArr
 				Cell mCell= cellArray[cellidx];
 				int neighboridx= ((mCell.coordinates.x+x)*boundary+(mCell.coordinates.y+y))*boundary + (mCell.coordinates.z+z);
 
-				force+=collisionsInCell(id,neighboridx, particleArray, cellArray);
+				force+=collisionsInCell(id,neighboridx, maxParticlesPerCell, particleArray, cellArray);
 			}
 
 		}
 	}
+
+	particleArray[id].velocity= particleArray[id].velocity + force;
 
 }
 
@@ -114,7 +141,7 @@ __global__ void runKernel(float4* spheres, int maxParticlesPerCell, float bounda
 	// Get id for current particle
    unsigned int id = blockIdx.x* blockDim.x + threadIdx.x;
 
-   computeInteractions(id,boundary,particleArray, cellArray);
+   computeInteractions(id,maxParticlesPerCell, boundary,particleArray, cellArray);
    __syncthreads();
 
    updatePosition(id,spheres, boundary, cell_size, particleArray, cellArray);
