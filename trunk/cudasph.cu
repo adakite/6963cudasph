@@ -91,7 +91,7 @@ const float maxVelocity = 0.1;
 const float minVelocity = -0.1;
 const float boundary= 32.0;
 
-const unsigned int numberOfParticles = 10240;
+const unsigned int numberOfParticles = 5120;
 const unsigned int numberOfParticlesPerBlock = 512;
 const unsigned int numberOfCells= ((int)floor((boundary)/cell_size))*((int)floor((boundary)/cell_size))*((int)floor((boundary)/cell_size));
 const unsigned int maxParticlesPerCell=4;
@@ -115,7 +115,7 @@ Cell* cellArray_d;
 int mouse_old_x, mouse_old_y;
 int mouse_buttons = 0;
 float rotate_x = 0.0, rotate_y = 0.0;
-float translate_z = -84.0;
+float translate_z = -96.0;
 float translate_x = -16.0;
 float translate_y = -16.0;
 
@@ -396,7 +396,7 @@ void display()
     glEnable(GL_COLOR_MATERIAL);
     glEnable(GL_LIGHT0);
 
-    GLfloat lightpos[] = {16.0, 16.0, 16.0, 1.0};
+    GLfloat lightpos[] = {-16.0, -16.0, -16.0, 1.0};
     glLightfv(GL_LIGHT0, GL_POSITION, lightpos);
 
     // set view matrix
@@ -409,7 +409,7 @@ void display()
 
     //Draw the walls
 
-    glDepthMask(GL_FALSE);
+    //glDepthMask(GL_FALSE);
 
 	glPushMatrix();
 	// Draw the Back
@@ -454,10 +454,16 @@ void display()
 	glEnd();
 	glPopMatrix();
 
-	glDepthMask(GL_TRUE);
+	//glDepthMask(GL_TRUE);
 
+	//Draw the wired cube
+	glPushMatrix();
+	glColor3f(1.0, 1.0, 1.0);
+	glTranslatef(16.0f,16.0f,16.0f);
+	glutWireCube(32.0);
+	glPopMatrix();
 
-    // render from the vbo
+    //Render from the vbo
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glVertexPointer(4, GL_FLOAT, 0, 0);
 
