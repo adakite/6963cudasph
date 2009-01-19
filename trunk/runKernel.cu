@@ -1,15 +1,51 @@
 #include "cutil_math.h"
 
-__device__ float3 evaluateCollision(int id, int neighbor, Particle* particleArray)
+__device__ float3 evaluateCollision(int id, int neighbor, Parameters params, Particle* particleArray)
 {
-	float3 force=make_float3(0.0f);
+	Particle one= particleArray[id];
+	Particle two= particleArray[neighbor];
 
+	// calculate relative position
+	float3 relPos;
+	relPos.x = two.position.x - one.position.x;
+	relPos.y = two.position.y - one.position.y;
+	relPos.z = two.position.z - one.position.z;
+	float dist = length(relPos);
 
+	//TODO: Should pass radios as parameter!!
+	float collideDist = params.particleRadious + params.particleRadious;
+
+	float3 force = make_float3(0.0f);
+
+	if (dist < collideDist)
+	{
+		//Relative position normalized
+		float3 norm = relPos / dist;
+
+		// relative velocity
+		float3 relVel;
+		relVel.x = two.velocity.x - one.velocity.x;
+		relVel.y = two.velocity.y - one.velocity.y;
+		relVel.z = two.velocity.z - one.velocity.z;
+
+		// relative tangential velocity
+		float3 tanVel = relVel - (dot(relVel, norm) * norm);
+
+		// spring force
+		force = -params.spring*(collideDist - dist) * norm;
+
+		// dashpot (damping) force
+		force += params.damping*relVel;
+		// tangential shear force
+		force += params.shear*tanVel;
+		// attraction
+		force += params.attraction*relPos;
+	}
 
 	return force;
 }
 
-__device__ float3 collisionsInCell(int id, int cellidx,int maxParticlesPerCell, Particle* particleArray, Cell* cellArray)
+__device__ float3 collisionsInCell(int id, int cellidx, Parameters params, Particle* particleArray, Cell* cellArray)
 {
 	float3 force=make_float3(0.0f);
 
@@ -17,7 +53,7 @@ __device__ float3 collisionsInCell(int id, int cellidx,int maxParticlesPerCell, 
 
 	//Iterate over particles in this cell
 
-	for (int i=0; i<maxParticlesPerCell; i++)
+	for (int i=0; i<cell.counter; i++)
 	{
 		//Get neighbor particle index
 		int neighboridx= cell.particleidxs[i];
@@ -25,13 +61,13 @@ __device__ float3 collisionsInCell(int id, int cellidx,int maxParticlesPerCell, 
 		//If neighbor exist and not collide with itself
 		if(neighboridx!= -1 && neighboridx!= id)
 		{
-			force+= evaluateCollision(id, neighboridx, particleArray);
+			force+= evaluateCollision(id, neighboridx, params, particleArray);
 		}
 	}
 
 	return force;
 }
-__device__ void computeInteractions(int id,int maxParticlesPerCell,float boundary, Particle* particleArray, Cell* cellArray)
+__device__ void computeInteractions(int id,Parameters params, Particle* particleArray, Cell* cellArray)
 {
 
 	// Get cell index of this particle
@@ -47,19 +83,21 @@ __device__ void computeInteractions(int id,int maxParticlesPerCell,float boundar
 			for(int x=-1; x<=1; x++)
 			{
 				Cell mCell= cellArray[cellidx];
-				int neighboridx= ((mCell.coordinates.x+x)*boundary+(mCell.coordinates.y+y))*boundary + (mCell.coordinates.z+z);
+				int neighboridx= ((mCell.coordinates.x+x)*params.boundary+(mCell.coordinates.y+y))*params.boundary + (mCell.coordinates.z+z);
 
-				force+=collisionsInCell(id,neighboridx, maxParticlesPerCell, particleArray, cellArray);
+				force+=collisionsInCell(id,neighboridx, params, particleArray, cellArray);
 			}
 
 		}
 	}
 
+	__syncthreads();
+	//Modify velocity
 	particleArray[id].velocity= particleArray[id].velocity + force;
 
 }
 
-__device__ void updatePosition(int id, float4* spheres,float boundary,float cell_size, Particle* particleArray,Cell* cellArray )
+__device__ void updatePosition(int id, float4* spheres,Parameters params, Particle* particleArray,Cell* cellArray )
 {
 
 	 // Update particle position
@@ -73,9 +111,9 @@ __device__ void updatePosition(int id, float4* spheres,float boundary,float cell
 		x = -x;
 		particleArray[id].velocity.x = -particleArray[id].velocity.x;
 	}
-	else if(x > boundary)
+	else if(x > params.boundary)
 	{
-		x = boundary - (x - boundary);
+		x = params.boundary - (x - params.boundary);
 		particleArray[id].velocity.x = -particleArray[id].velocity.x;
 	}
 
@@ -84,9 +122,9 @@ __device__ void updatePosition(int id, float4* spheres,float boundary,float cell
 		y = -y;
 		particleArray[id].velocity.y = -particleArray[id].velocity.y;
 	}
-	else if(y > boundary)
+	else if(y > params.boundary)
 	{
-		y = boundary - (y - boundary);
+		y = params.boundary - (y - params.boundary);
 		particleArray[id].velocity.y = -particleArray[id].velocity.y;
 	}
 
@@ -95,24 +133,24 @@ __device__ void updatePosition(int id, float4* spheres,float boundary,float cell
 		z = -z;
 		particleArray[id].velocity.z = -particleArray[id].velocity.z;
 	}
-	else if(z > boundary)
+	else if(z > params.boundary)
 	{
-		z = boundary - (z - boundary);
+		z = params.boundary - (z - params.boundary);
 		particleArray[id].velocity.z = -particleArray[id].velocity.z;
 	}
 
-	makeSphere(spheres, id, x , y, z , 0.5f);
+	makeSphere(spheres, id, x , y, z , params.particleRadious);
 
 	particleArray[id].position.x = x;
 	particleArray[id].position.y = y;
 	particleArray[id].position.z = z;
 
 	//Update cell information
-	int cell_x= (int) floor(x/ cell_size);
-	int cell_y= (int) floor(y/ cell_size);
-	int cell_z= (int) floor(z/ cell_size);
+	int cell_x= (int) floor(x/ params.cellSize);
+	int cell_y= (int) floor(y/ params.cellSize);
+	int cell_z= (int) floor(z/ params.cellSize);
 
-	int cellidx= (cell_x*boundary+cell_y)*boundary + cell_z;
+	int cellidx= (cell_x*params.boundary+cell_y)*params.boundary + cell_z;
 	particleArray[id].cellidx= cellidx;
 	cellArray[cellidx].counter=0;
 }
@@ -120,7 +158,7 @@ __device__ void updatePosition(int id, float4* spheres,float boundary,float cell
 
 
 
-__device__ void updateCells (int id,int maxParticlesPerCell, Particle* particleArray, Cell* cellArray)
+__device__ void updateCells (int id,Parameters params, Particle* particleArray, Cell* cellArray)
 {
 	int cellidx=particleArray[id].cellidx;
 
@@ -128,7 +166,7 @@ __device__ void updateCells (int id,int maxParticlesPerCell, Particle* particleA
 		int counter = 0;
 	#else
 		int counter = atomicAdd(&cellArray[cellidx].counter, 1);
-		counter = min(counter, 4-1);
+		counter = min(counter, params.maxParticlesPerCell-1);
 	#endif
 
 	cellArray[cellidx].particleidxs[counter]=id;
@@ -136,18 +174,18 @@ __device__ void updateCells (int id,int maxParticlesPerCell, Particle* particleA
 }
 
 
-__global__ void runKernel(float4* spheres, int maxParticlesPerCell, float boundary,float cell_size, Particle* particleArray, Cell* cellArray)
+__global__ void runKernel(float4* spheres, Parameters params, Particle* particleArray, Cell* cellArray)
 {
 	// Get id for current particle
    unsigned int id = blockIdx.x* blockDim.x + threadIdx.x;
 
-   computeInteractions(id,maxParticlesPerCell, boundary,particleArray, cellArray);
-   __syncthreads();
+   //computeInteractions(id,params,particleArray, cellArray);
+   //__syncthreads();
 
-   updatePosition(id,spheres, boundary, cell_size, particleArray, cellArray);
+   updatePosition(id,spheres, params, particleArray, cellArray);
 	__syncthreads();
 
-   updateCells (id, maxParticlesPerCell, particleArray, cellArray);
+   updateCells (id, params, particleArray, cellArray);
    __syncthreads();
 }
 
