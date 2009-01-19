@@ -61,7 +61,6 @@
 #include <math.h>
 
 
-
 // includes, GL
 #include <GL/glew.h>
 
@@ -79,6 +78,7 @@
 #include <sphere.c>
 #include <particle.h>
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // constants
 const unsigned int window_width = 1024;
@@ -94,9 +94,10 @@ const float boundary= 32.0;
 const unsigned int numberOfParticles = 10240;
 const unsigned int numberOfParticlesPerBlock = 512;
 const unsigned int numberOfCells= ((int)floor((boundary)/cell_size))*((int)floor((boundary)/cell_size))*((int)floor((boundary)/cell_size));
-
+const unsigned int maxParticlesPerCell=4;
 
 float anim = 0.0;
+
 
 // vbo variables
 GLuint vbo;
@@ -164,6 +165,28 @@ int main( int argc, char** argv)
     CUT_EXIT(argc, argv);
 }
 
+void initializeCells()
+{
+	for(unsigned int i = 0; i < boundary; i++)
+	{
+		for(unsigned int j = 0; j < boundary; j++)
+		{
+			for(unsigned int k = 0; k < boundary; k++)
+			{
+				int cellidx=(i*boundary+j)*boundary + k;
+				cellArray_h[cellidx].coordinates.x=i;
+				cellArray_h[cellidx].coordinates.y=j;
+				cellArray_h[cellidx].coordinates.z=k;
+				cellArray_h[cellidx].counter=0;
+				for (int m=0; m<maxParticlesPerCell;m++)
+				{
+					cellArray_h[cellidx].particleidxs[m]=0;
+				}
+			}
+		}
+	}
+}
+
 
 void initializeParticles()
 {
@@ -185,61 +208,14 @@ void initializeParticles()
 		int cell_y= (int) floor(particleArray_h[i].position.y/ cell_size);
 		int cell_z= (int) floor(particleArray_h[i].position.z/ cell_size);
 
-		particleArray_h[i].cellidx= (cell_x*boundary+cell_y)*boundary + cell_z;
-		particleArray_h[i].next= -1;
-	}
+		int cellidx=(cell_x*boundary+cell_y)*boundary + cell_z;
+		particleArray_h[i].cellidx= cellidx;
 
-}
-
-void initializeCells()
-{
-	for(unsigned int i = 0; i < boundary; i++)
-	{
-		for(unsigned int j = 0; j < boundary; j++)
+		if(cellArray_h[cellidx].counter< maxParticlesPerCell)
 		{
-			for(unsigned int k = 0; k < boundary; k++)
-			{
-				int cellidx=(i*boundary+j)*boundary + k;
-				cellArray_h[cellidx].coordinates.x=i;
-				cellArray_h[cellidx].coordinates.y=j;
-				cellArray_h[cellidx].coordinates.z=k;
-
-				int minp=numberOfParticles;
-				for(unsigned int p = 0; p < numberOfParticles; p++)
-				{
-					if(particleArray_h[p].cellidx== cellidx && p<minp)
-					{
-						minp=p;
-					}
-				}
-
-				if (minp==numberOfParticles)
-				{
-					minp=-1;
-				}
-				cellArray_h[cellidx].head=minp;
-			}
+			cellArray_h[cellidx].counter=cellArray_h[cellidx].counter+1;
+			cellArray_h[cellidx].particleidxs[cellArray_h[cellidx].counter]=i;
 		}
-	}
-}
-
-void initializeNeighbors()
-{
-	for(unsigned int p = 0; p < numberOfParticles; p++)
-	{
-		int minq=numberOfParticles;
-		for(unsigned int q = 0; q < numberOfParticles; q++)
-		{
-			if(particleArray_h[p].cellidx==particleArray_h[q].cellidx && q<minq && q>p)
-			{
-				minq=q;
-			}
-		}
-		if (minq==numberOfParticles)
-		{
-			minq=-1;
-		}
-		particleArray_h[p].next=minq;
 	}
 }
 
@@ -266,6 +242,7 @@ void copyCellsFromHostToDevice()
 
 	cudaMemcpy(cellArray_d, cellArray_h, size, cudaMemcpyHostToDevice);
 }
+
 
 void copyCellsFromDeviceToHost()
 {
@@ -296,9 +273,10 @@ void runTest( int argc, char** argv)
     glutMouseFunc( mouse);
     glutMotionFunc( motion);
 
-    initializeParticles();
+
     initializeCells();
-    initializeNeighbors();
+    initializeParticles();
+
 
     // create VBO
 	createVBO(&vbo);
@@ -326,9 +304,8 @@ void runCuda(GLuint vbo)
     dim3 block(1, 1, 1);
     dim3 grid(numberOfParticles / block.x, 1, 1);
     //particleInteraction<<< grid, block>>>(dptr, mesh_width, mesh_height, anim);
-    runKernel<<< grid, block>>>(dptr, boundary, particleArray_d,cellArray_d);
+    runKernel<<< grid, block>>>(dptr,maxParticlesPerCell, boundary, cell_size, particleArray_d,cellArray_d);
 
-    //copyParticlesFromDeviceToHost();
     // unmap buffer object
 	cudaGLUnmapBufferObject(vbo);
 }

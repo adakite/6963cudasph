@@ -5,13 +5,14 @@ typedef struct
 	float3 velocity;
 	float3 color;
 	int cellidx;
-	int next;
+
 } Particle;
 
 typedef struct
 {
 	int3 coordinates;
-	int head;
+	int counter;
+	int particleidxs[4];
 } Cell;
 
 
