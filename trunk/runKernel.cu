@@ -1,6 +1,40 @@
+#include "cutil_math.h"
+
+__device__ float3 collisionsInCell(int id, int cellidx, Particle* particleArray, Cell* cellArray)
+{
+	float3 force=make_float3(0.0f);
+
+	return force;
+}
+__device__ void computeInteractions(int id,float boundary, Particle* particleArray, Cell* cellArray)
+{
+
+	// Get cell index of this particle
+	int cellidx=particleArray[id].cellidx;
+
+	//Iterate over neighbor cells
+	float3 force = make_float3(0.0f);
+
+	for(int z=-1; z<=1; z++)
+	{
+		for(int y=-1; y<=1; y++)
+		{
+			for(int x=-1; x<=1; x++)
+			{
+				Cell mCell= cellArray[cellidx];
+				int neighboridx= ((mCell.coordinates.x+x)*boundary+(mCell.coordinates.y+y))*boundary + (mCell.coordinates.z+z);
+
+				force+=collisionsInCell(id,neighboridx, particleArray, cellArray);
+			}
+
+		}
+	}
+
+}
 
 __device__ void updatePosition(int id, float4* spheres,float boundary,float cell_size, Particle* particleArray,Cell* cellArray )
 {
+
 	 // Update particle position
 	float x = particleArray[id].position.x + particleArray[id].velocity.x;
 	float y = particleArray[id].position.y + particleArray[id].velocity.y;
@@ -58,11 +92,6 @@ __device__ void updatePosition(int id, float4* spheres,float boundary,float cell
 
 
 
-__device__ void computeInteractions(int id, Particle* particleArray,Cell* cellArray)
-{
-
-
-}
 
 __device__ void updateCells (int id,int maxParticlesPerCell, Particle* particleArray, Cell* cellArray)
 {
@@ -85,7 +114,7 @@ __global__ void runKernel(float4* spheres, int maxParticlesPerCell, float bounda
 	// Get id for current particle
    unsigned int id = blockIdx.x* blockDim.x + threadIdx.x;
 
-   computeInteractions(id,particleArray, cellArray);
+   computeInteractions(id,boundary,particleArray, cellArray);
    __syncthreads();
 
    updatePosition(id,spheres, boundary, cell_size, particleArray, cellArray);
