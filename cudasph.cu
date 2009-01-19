@@ -91,14 +91,23 @@ const float maxVelocity = 0.1;
 const float minVelocity = -0.1;
 const float boundary= 32.0;
 
-const unsigned int numberOfParticles = 5120;
+const unsigned int numberOfParticles = 10240;
 const unsigned int numberOfParticlesPerBlock = 512;
 const unsigned int numberOfCells= ((int)floor((boundary)/cell_size))*((int)floor((boundary)/cell_size))*((int)floor((boundary)/cell_size));
 const unsigned int maxParticlesPerCell=4;
 
+const float spring=0.5f;
+const float damping=0.02f;
+const float shear=0.1;
+const float attraction=0.0;
+
+
+/////////////////////////////////////////////////////////////////////////////////
+//Physics variables
 float anim = 0.0;
+Parameters params;
 
-
+/////////////////////////////////////////////////////////////////////////////////
 // vbo variables
 GLuint vbo;
 
@@ -123,10 +132,9 @@ float translate_y = -16.0;
 // kernels
 #include <runKernel.cu>
 
+void initializeParameters();
 void initializeParticles();
 void initializeCells();
-void initializeNeighbors();
-
 
 void copyParticlesFromHostToDevice();
 void copyCellsFromHostToDevice();
@@ -163,6 +171,19 @@ int main( int argc, char** argv)
 	runTest( argc, argv);
 
     CUT_EXIT(argc, argv);
+}
+
+void initializeParameters()
+{
+	params.maxParticlesPerCell= maxParticlesPerCell;
+	params.boundary=boundary;
+	params.cellSize=cell_size;
+	params.particleRadious=particle_size;
+	params.spring=spring;
+	params.damping=damping;
+	params.shear=shear;
+	params.attraction=attraction;
+
 }
 
 void initializeCells()
@@ -274,9 +295,9 @@ void runTest( int argc, char** argv)
     glutMotionFunc( motion);
 
 
+    initializeParameters();
     initializeCells();
     initializeParticles();
-
 
     // create VBO
 	createVBO(&vbo);
@@ -304,7 +325,7 @@ void runCuda(GLuint vbo)
     dim3 block(1, 1, 1);
     dim3 grid(numberOfParticles / block.x, 1, 1);
     //particleInteraction<<< grid, block>>>(dptr, mesh_width, mesh_height, anim);
-    runKernel<<< grid, block>>>(dptr,maxParticlesPerCell, boundary, cell_size, particleArray_d,cellArray_d);
+    runKernel<<< grid, block>>>(dptr,params, particleArray_d,cellArray_d);
 
     // unmap buffer object
 	cudaGLUnmapBufferObject(vbo);
@@ -348,7 +369,6 @@ CUTBoolean initGL()
 }
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //! Create VBO
 ////////////////////////////////////////////////////////////////////////////////
@@ -366,7 +386,6 @@ void createVBO(GLuint* vbo)
 
     // register buffer object with CUDA
     cudaGLRegisterBufferObject(*vbo);
-
     //CUT_CHECK_ERROR_GL();
 }
 
