@@ -57,6 +57,7 @@ __device__ float3 collisionsInCell(int id, Cell nCell, Parameters params, Partic
 		if(neighboridx!= -1 && neighboridx!= id)
 		{
 			Particle two= particleArray[neighboridx];
+
 			force+= evaluateCollision(one, two, params);
 		}
 	}
@@ -108,6 +109,8 @@ __device__ void computeInteractions(int id,Parameters params, Particle* particle
 
 __device__ void updatePosition(int id, float4* spheres,Parameters params, Particle* particleArray,Cell* cellArray )
 {
+
+	cellArray[particleArray[id].cellidx].counter=0;
 
 	 // Update particle position
 	float x = particleArray[id].position.x + particleArray[id].velocity.x;
@@ -174,7 +177,7 @@ __device__ void updateCells (int id,Parameters params, Particle* particleArray, 
 	#if defined CUDA_NO_SM_11_ATOMIC_INTRINSICS
 		int counter = 0;
 	#else
-		int counter = atomicAdd(&cellArray[cellidx].counter, 1);
+		int counter = atomicAdd(cellArray[cellidx].counter, 1);
 		counter = min(counter, params.maxParticlesPerCell-1);
 	#endif
 
