@@ -78,7 +78,6 @@
 #include <sphere.c>
 #include <particle.h>
 
-
 ////////////////////////////////////////////////////////////////////////////////
 // constants
 const unsigned int window_width = 1024;
@@ -91,7 +90,7 @@ const float maxVelocity = 0.1;
 const float minVelocity = -0.1;
 const float boundary= 32.0;
 
-const unsigned int numberOfParticles = 10240;
+const unsigned int numberOfParticles = 5120;
 const unsigned int numberOfParticlesPerBlock = 512;
 const unsigned int numberOfCells= ((int)floor((boundary)/cell_size))*((int)floor((boundary)/cell_size))*((int)floor((boundary)/cell_size));
 const unsigned int maxParticlesPerCell=4;
@@ -100,6 +99,7 @@ const float spring=0.5f;
 const float damping=0.02f;
 const float shear=0.1;
 const float attraction=0.0;
+
 
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -151,7 +151,6 @@ CUTBoolean initGL();
 void createVBO(GLuint* vbo);
 void deleteVBO(GLuint* vbo);
 
-
 // rendering callbacks
 void display();
 void mouse(int button, int state, int x, int y);
@@ -160,8 +159,6 @@ void motion(int x, int y);
 
 // Cuda functionality
 void runCuda(GLuint vbo);
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
@@ -185,6 +182,7 @@ void initializeParameters()
 	params.attraction=attraction;
 
 }
+
 
 void initializeCells()
 {
