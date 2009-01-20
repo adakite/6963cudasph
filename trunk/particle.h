@@ -21,6 +21,7 @@ typedef struct
 typedef struct
 {
 	int maxParticlesPerCell;
+	int maxParticles;
 	float boundary;
 	float cellSize;
 	float particleRadious;
