@@ -91,7 +91,7 @@ const float maxVelocity = 0.1;
 const float minVelocity = -0.1;
 const float boundary= 32.0;
 
-const unsigned int numberOfParticles = 512;
+const unsigned int numberOfParticles = 64;
 const unsigned int numberOfParticlesPerBlock = 512;
 const unsigned int numberOfCells= ((int)floor((boundary)/cell_size))*((int)floor((boundary)/cell_size))*((int)floor((boundary)/cell_size));
 const unsigned int maxParticlesPerCell=4;
@@ -99,12 +99,13 @@ const unsigned int maxParticlesPerCell=4;
 const float spring=0.5f;
 const float damping=0.02f;
 const float shear=0.1;
-const float attraction=0.0;
+const float attraction=0.2;
 
 /////////////////////////////////////////////////////////////////////////////////
 //Physics variables
 float anim = 0.0;
 Parameters params;
+
 
 /////////////////////////////////////////////////////////////////////////////////
 // vbo variables
@@ -123,7 +124,7 @@ Cell* cellArray_d;
 int mouse_old_x, mouse_old_y;
 int mouse_buttons = 0;
 float rotate_x = 0.0, rotate_y = 0.0;
-float translate_z = -96.0;
+float translate_z = -84.0;
 float translate_x = -16.0;
 float translate_y = -16.0;
 
@@ -138,8 +139,10 @@ void initializeCells();
 void copyParticlesFromHostToDevice();
 void copyCellsFromHostToDevice();
 
+
 void copyParticlesFromDeviceToHost();
 void copyCellsFromDeviceToHost();
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // declaration, forward
@@ -171,6 +174,7 @@ int main( int argc, char** argv)
 
 void initializeParameters()
 {
+	params.maxParticles= numberOfParticles;
 	params.maxParticlesPerCell= maxParticlesPerCell;
 	params.boundary=boundary;
 	params.cellSize=cell_size;
@@ -195,6 +199,7 @@ void initializeCells()
 				cellArray_h[cellidx].coordinates.y=j;
 				cellArray_h[cellidx].coordinates.z=k;
 				cellArray_h[cellidx].counter=0;
+
 				for (int m=0; m<maxParticlesPerCell;m++)
 				{
 					cellArray_h[cellidx].particleidxs[m]=-1;
@@ -266,6 +271,7 @@ void copyCellsFromDeviceToHost()
 	int size = numberOfCells*sizeof(Cell);
 	cudaMemcpy(cellArray_h, cellArray_d, size,cudaMemcpyDeviceToHost);
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 //! Run a simple test for CUDA
 ////////////////////////////////////////////////////////////////////////////////
@@ -295,6 +301,21 @@ void runTest( int argc, char** argv)
     initializeCells();
     initializeParticles();
 
+
+   /* printf("Time 0");
+    for(int c=0; c<numberOfCells; c++)
+    {
+    	if(cellArray_h[c].counter>2)
+    	{
+			printf("Cell {%d}, counter {%d} \n",c,cellArray_h[c].counter);
+
+			for (int p=0; p<cellArray_h[c].counter; p++)
+			{
+				printf("Member {%d}, particle {%d} \n",p,cellArray_h[c].particleidxs[p]);
+			}
+		}
+    }*/
+
     // create VBO
 	createVBO(&vbo);
 
@@ -303,7 +324,6 @@ void runTest( int argc, char** argv)
     copyCellsFromHostToDevice();
 
     runCuda(vbo);
-
     // start rendering mainloop
     glutMainLoop();
 }
@@ -317,11 +337,30 @@ void runCuda(GLuint vbo)
 	float4 *dptr;
 	cudaGLMapBufferObject( (void**)&dptr, vbo);
 
+
     // execute the kernel
     dim3 block(1, 1, 1);
     dim3 grid(numberOfParticles / block.x, 1, 1);
     //particleInteraction<<< grid, block>>>(dptr, mesh_width, mesh_height, anim);
     runKernel<<< grid, block>>>(dptr,params, particleArray_d,cellArray_d);
+
+    copyParticlesFromDeviceToHost();
+   // copyDictionaryFromDeviceToHost();
+   // copyCellsFromDeviceToHost();
+
+    /*printf("Time 1");
+	for(int c=0; c<numberOfCells; c++)
+	{
+		if(cellArray_h[c].counter>2)
+		{
+			printf("Cell {%d}, counter {%d} \n",c,cellArray_h[c].counter);
+
+			for (int p=0; p<cellArray_h[c].counter; p++)
+			{
+				printf("Member {%d}, particle {%d} \n",p,cellArray_h[c].particleidxs[p]);
+			}
+		}
+	}*/
 
     // unmap buffer object
 	cudaGLUnmapBufferObject(vbo);
@@ -384,6 +423,7 @@ void createVBO(GLuint* vbo)
     cudaGLRegisterBufferObject(*vbo);
     //CUT_CHECK_ERROR_GL();
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //! Delete VBO
@@ -478,7 +518,7 @@ void display()
 	glutWireCube(32.0);
 	glPopMatrix();
 
-    //Render from the vbo
+    /*//Render from the vbo
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glVertexPointer(4, GL_FLOAT, 0, 0);
 
@@ -488,9 +528,9 @@ void display()
 	glDisableClientState(GL_VERTEX_ARRAY);
 
 	glutSwapBuffers();
-	glutPostRedisplay();
+	glutPostRedisplay();*/
 
-	/*
+
 
     // Draw the particles
 	for(int i=0; i<numberOfParticles; i++)
@@ -508,7 +548,7 @@ void display()
 
     glutSwapBuffers();
     glutPostRedisplay();
-    */
+
 
     anim += 0.01;
 }

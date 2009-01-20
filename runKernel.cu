@@ -26,15 +26,15 @@ __device__ float3 evaluateCollision(Particle one,Particle two, Parameters params
 		relVel.z = two.velocity.z - one.velocity.z;
 
 		// relative tangential velocity
-		float3 tanVel = relVel - (dot(relVel, norm) * norm);
+		//float3 tanVel = relVel - (dot(relVel, norm) * norm);
 		// spring force
 		force = -params.spring*(collideDist - dist) * norm;
 		// dashpot (damping) force
-		force += params.damping*relVel;
+		//force += params.damping*relVel;
 		// tangential shear force
-		force += params.shear*tanVel;
+		//force += params.shear*tanVel;
 		// attraction
-		force += params.attraction*relPos;
+		//force += params.attraction*relPos;
 	}
 
 	return force;
@@ -57,7 +57,6 @@ __device__ float3 collisionsInCell(int id, Cell nCell, Parameters params, Partic
 		if(neighboridx!= -1 && neighboridx!= id)
 		{
 			Particle two= particleArray[neighboridx];
-
 			force+= evaluateCollision(one, two, params);
 		}
 	}
@@ -104,6 +103,8 @@ __device__ void computeInteractions(int id,Parameters params, Particle* particle
 
 	//Modify velocity
 	particleArray[id].velocity= particleArray[id].velocity +force;
+
+	 __syncthreads();
 
 }
 
@@ -165,6 +166,8 @@ __device__ void updatePosition(int id, float4* spheres,Parameters params, Partic
 	int cellidx= (cell_x*params.boundary+cell_y)*params.boundary + cell_z;
 	particleArray[id].cellidx= cellidx;
 	cellArray[cellidx].counter=0;
+
+	__syncthreads();
 }
 
 
@@ -176,12 +179,35 @@ __device__ void updateCells (int id,Parameters params, Particle* particleArray, 
 
 	#if defined CUDA_NO_SM_11_ATOMIC_INTRINSICS
 		int counter = 0;
+
+		for(int i=0; i< params.maxParticles; i++)
+		{
+			if (cellidx== particleArray[i].cellidx)
+			{
+				if(i==id)
+				{
+					cellArray[cellidx].particleidxs[counter]=id;
+
+					if(counter >= cellArray[cellidx].counter)
+					{
+						cellArray[cellidx].counter=counter+1;;
+					}
+				}
+				counter=counter+1;
+				if(counter >= params.maxParticlesPerCell)
+				{
+					break;
+				}
+			}
+		}
+
 	#else
-		int counter = atomicAdd(cellArray[cellidx].counter, 1);
+		int counter = atomicAdd(&cellArray[cellidx].counter, 1);
 		counter = min(counter, params.maxParticlesPerCell-1);
+		cellArray[cellidx].particleidxs[counter]=id;
 	#endif
 
-	cellArray[cellidx].particleidxs[counter]=id;
+	__syncthreads();
 
 }
 
@@ -192,13 +218,11 @@ __global__ void runKernel(float4* spheres, Parameters params, Particle* particle
    unsigned int id = blockIdx.x* blockDim.x + threadIdx.x;
 
    computeInteractions(id,params,particleArray, cellArray);
-   __syncthreads();
 
    updatePosition(id,spheres, params, particleArray, cellArray);
-	__syncthreads();
 
    updateCells (id, params, particleArray, cellArray);
-   __syncthreads();
+
 }
 
 
