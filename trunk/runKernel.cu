@@ -1,9 +1,7 @@
 #include "cutil_math.h"
 
-__device__ float3 evaluateCollision(int id, int neighbor, Parameters params, Particle* particleArray)
+__device__ float3 evaluateCollision(Particle one,Particle two, Parameters params)
 {
-	Particle one= particleArray[id];
-	Particle two= particleArray[neighbor];
 
 	// calculate relative position
 	float3 relPos;
@@ -12,7 +10,6 @@ __device__ float3 evaluateCollision(int id, int neighbor, Parameters params, Par
 	relPos.z = two.position.z - one.position.z;
 	float dist = length(relPos);
 
-	//TODO: Should pass radios as parameter!!
 	float collideDist = params.particleRadious + params.particleRadious;
 
 	float3 force = make_float3(0.0f);
@@ -30,10 +27,8 @@ __device__ float3 evaluateCollision(int id, int neighbor, Parameters params, Par
 
 		// relative tangential velocity
 		float3 tanVel = relVel - (dot(relVel, norm) * norm);
-
 		// spring force
 		force = -params.spring*(collideDist - dist) * norm;
-
 		// dashpot (damping) force
 		force += params.damping*relVel;
 		// tangential shear force
@@ -45,23 +40,24 @@ __device__ float3 evaluateCollision(int id, int neighbor, Parameters params, Par
 	return force;
 }
 
-__device__ float3 collisionsInCell(int id, int cellidx, Parameters params, Particle* particleArray, Cell* cellArray)
+__device__ float3 collisionsInCell(int id, Cell nCell, Parameters params, Particle* particleArray)
 {
 	float3 force=make_float3(0.0f);
 
-	Cell cell= cellArray[cellidx];
+	Particle one= particleArray[id];
 
 	//Iterate over particles in this cell
 
-	for (int i=0; i<cell.counter; i++)
+	for (int i=0; i<nCell.counter; i++)
 	{
 		//Get neighbor particle index
-		int neighboridx= cell.particleidxs[i];
+		int neighboridx= nCell.particleidxs[i];
 
 		//If neighbor exist and not collide with itself
 		if(neighboridx!= -1 && neighboridx!= id)
 		{
-			force+= evaluateCollision(id, neighboridx, params, particleArray);
+			Particle two= particleArray[neighboridx];
+			force+= evaluateCollision(one, two, params);
 		}
 	}
 
@@ -76,24 +72,37 @@ __device__ void computeInteractions(int id,Parameters params, Particle* particle
 	//Iterate over neighbor cells
 	float3 force = make_float3(0.0f);
 
-	for(int z=-1; z<=1; z++)
+	for(int x=-1; x<=1; x++)
 	{
 		for(int y=-1; y<=1; y++)
 		{
-			for(int x=-1; x<=1; x++)
+			for(int z=-1; z<=1; z++)
 			{
 				Cell mCell= cellArray[cellidx];
-				int neighboridx= ((mCell.coordinates.x+x)*params.boundary+(mCell.coordinates.y+y))*params.boundary + (mCell.coordinates.z+z);
+				int nCellx=mCell.coordinates.x+x;
+				int nCelly=mCell.coordinates.y+y;
+				int nCellz=mCell.coordinates.z+z;
 
-				force+=collisionsInCell(id,neighboridx, params, particleArray, cellArray);
+				if(nCellx>=0 && nCellx<params.boundary && nCelly>=0 && nCelly<params.boundary && nCellz>=0 && nCellz<params.boundary)
+				{
+					int neighboridx= (nCellx*params.boundary+nCelly)*params.boundary + nCellz;
+					Cell nCell= cellArray[neighboridx];
+
+					if(nCell.counter>0)
+					{
+						force+=collisionsInCell(id,nCell, params, particleArray);
+					}
+				}
 			}
 
 		}
 	}
 
+
 	__syncthreads();
+
 	//Modify velocity
-	particleArray[id].velocity= particleArray[id].velocity + force;
+	particleArray[id].velocity= particleArray[id].velocity +force;
 
 }
 
@@ -179,8 +188,8 @@ __global__ void runKernel(float4* spheres, Parameters params, Particle* particle
 	// Get id for current particle
    unsigned int id = blockIdx.x* blockDim.x + threadIdx.x;
 
-   //computeInteractions(id,params,particleArray, cellArray);
-   //__syncthreads();
+   computeInteractions(id,params,particleArray, cellArray);
+   __syncthreads();
 
    updatePosition(id,spheres, params, particleArray, cellArray);
 	__syncthreads();
