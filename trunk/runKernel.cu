@@ -29,12 +29,15 @@ __device__ float3 evaluateCollision(Particle one,Particle two, Parameters params
 		//float3 tanVel = relVel - (dot(relVel, norm) * norm);
 		// spring force
 		force = -params.spring*(collideDist - dist) * norm;
+		//John suggested
+		//force= -params.spring* (dot(relVel, norm) * norm);
 		// dashpot (damping) force
-		//force += params.damping*relVel;
+		force += params.damping*relVel;
 		// tangential shear force
 		//force += params.shear*tanVel;
 		// attraction
 		//force += params.attraction*relPos;
+
 	}
 
 	return force;
@@ -98,58 +101,56 @@ __device__ void computeInteractions(int id,Parameters params, Particle* particle
 		}
 	}
 
-
 	__syncthreads();
 
 	//Modify velocity
-	particleArray[id].velocity= particleArray[id].velocity +force;
-
-	 __syncthreads();
+	particleArray[id].velocity= particleArray[id].velocity+ force;
 
 }
 
-__device__ void updatePosition(int id, float4* spheres,Parameters params, Particle* particleArray,Cell* cellArray )
+__device__ void updatePosition(int id, float4* spheres,Parameters params, Particle* particleArray,Cell* cellArray,float deltaTime )
 {
 
 	cellArray[particleArray[id].cellidx].counter=0;
 
+	particleArray[id].velocity.y += gravity;
 	 // Update particle position
-	float x = particleArray[id].position.x + particleArray[id].velocity.x;
-	float y = particleArray[id].position.y + particleArray[id].velocity.y;
-	float z = particleArray[id].position.z + particleArray[id].velocity.z;
+	float x = particleArray[id].position.x + particleArray[id].velocity.x*deltaTime;
+	float y = particleArray[id].position.y + particleArray[id].velocity.y*deltaTime;
+	float z = particleArray[id].position.z + particleArray[id].velocity.z*deltaTime;
 
 	// Boundary check
 	if(x < 0.0)
 	{
 		x = -x;
-		particleArray[id].velocity.x = -particleArray[id].velocity.x;
+		particleArray[id].velocity.x = -particleArray[id].velocity.x*params.boundaryDamping;
 	}
 	else if(x > params.boundary)
 	{
 		x = params.boundary - (x - params.boundary);
-		particleArray[id].velocity.x = -particleArray[id].velocity.x;
+		particleArray[id].velocity.x = -particleArray[id].velocity.x*params.boundaryDamping;
 	}
 
 	if(y < 0.0)
 	{
 		y = -y;
-		particleArray[id].velocity.y = -particleArray[id].velocity.y;
+		particleArray[id].velocity.y = -particleArray[id].velocity.y*params.boundaryDamping;
 	}
 	else if(y > params.boundary)
 	{
 		y = params.boundary - (y - params.boundary);
-		particleArray[id].velocity.y = -particleArray[id].velocity.y;
+		particleArray[id].velocity.y = -particleArray[id].velocity.y*params.boundaryDamping;
 	}
 
 	if(z < 0.0)
 	{
 		z = -z;
-		particleArray[id].velocity.z = -particleArray[id].velocity.z;
+		particleArray[id].velocity.z = -particleArray[id].velocity.z*params.boundaryDamping;
 	}
 	else if(z > params.boundary)
 	{
 		z = params.boundary - (z - params.boundary);
-		particleArray[id].velocity.z = -particleArray[id].velocity.z;
+		particleArray[id].velocity.z = -particleArray[id].velocity.z*params.boundaryDamping;
 	}
 
 	makeSphere(spheres, id, x , y, z , params.particleRadious);
@@ -167,7 +168,6 @@ __device__ void updatePosition(int id, float4* spheres,Parameters params, Partic
 	particleArray[id].cellidx= cellidx;
 	cellArray[cellidx].counter=0;
 
-	__syncthreads();
 }
 
 
@@ -207,21 +207,24 @@ __device__ void updateCells (int id,Parameters params, Particle* particleArray, 
 		cellArray[cellidx].particleidxs[counter]=id;
 	#endif
 
-	__syncthreads();
+
 
 }
 
 
-__global__ void runKernel(float4* spheres, Parameters params, Particle* particleArray, Cell* cellArray)
+__global__ void runKernel(float4* spheres, Parameters params, Particle* particleArray, Cell* cellArray, float deltaTime)
 {
 	// Get id for current particle
    unsigned int id = blockIdx.x* blockDim.x + threadIdx.x;
 
    computeInteractions(id,params,particleArray, cellArray);
+   __syncthreads();
 
-   updatePosition(id,spheres, params, particleArray, cellArray);
+   updatePosition(id,spheres, params, particleArray, cellArray,deltaTime);
+   __syncthreads();
 
    updateCells (id, params, particleArray, cellArray);
+   __syncthreads();
 
 }
 

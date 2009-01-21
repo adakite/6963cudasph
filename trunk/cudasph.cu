@@ -1,6 +1,6 @@
+
 /*
- * Copyright 1993-2007 NVIDIA Corporation.  All rights reserved.
- *
+ * Copyright 1993-2007 NVIDIA Corporation.  All rights reserved. *
  * NOTICE TO USER:
  * This source code is subject to NVIDIA ownership rights under U.S. and
  * international Copyright laws.  Users and possessors of this source code
@@ -84,28 +84,31 @@
 const unsigned int window_width = 1024;
 const unsigned int window_height = 1024;
 
-const float particle_size = 0.5f;
+const float particle_size = 0.2f;
 const float cell_size = 2.0f* particle_size;
 
-const float maxVelocity = 0.1;
-const float minVelocity = -0.1;
+const float maxVelocity = 1;
+const float minVelocity = -1;
 const float boundary= 32.0;
 
-const unsigned int numberOfParticles = 64;
+const unsigned int numberOfParticles = 512;
 const unsigned int numberOfParticlesPerBlock = 512;
 const unsigned int numberOfCells= ((int)floor((boundary)/cell_size))*((int)floor((boundary)/cell_size))*((int)floor((boundary)/cell_size));
 const unsigned int maxParticlesPerCell=4;
+const float deltaTime=0.2f;
+
 
 const float spring=0.5f;
-const float damping=0.02f;
-const float shear=0.1;
-const float attraction=0.2;
+const float damping=0.2f;
+const float shear=0.1f;
+const float attraction= 0.01f;
+const float gravity= -0.2f;
+const float boundaryDamping=0.2;
 
 /////////////////////////////////////////////////////////////////////////////////
 //Physics variables
 float anim = 0.0;
 Parameters params;
-
 
 /////////////////////////////////////////////////////////////////////////////////
 // vbo variables
@@ -143,7 +146,6 @@ void copyCellsFromHostToDevice();
 void copyParticlesFromDeviceToHost();
 void copyCellsFromDeviceToHost();
 
-
 ////////////////////////////////////////////////////////////////////////////////
 // declaration, forward
 void runTest( int argc, char** argv);
@@ -172,6 +174,7 @@ int main( int argc, char** argv)
     CUT_EXIT(argc, argv);
 }
 
+
 void initializeParameters()
 {
 	params.maxParticles= numberOfParticles;
@@ -183,6 +186,8 @@ void initializeParameters()
 	params.damping=damping;
 	params.shear=shear;
 	params.attraction=attraction;
+	params.gravity=gravity;
+	params.boundaryDamping=boundaryDamping;
 
 }
 
@@ -239,6 +244,54 @@ void initializeParticles()
 			cellArray_h[cellidx].counter=cellArray_h[cellidx].counter+1;
 		}
 	}
+
+	/*particleArray_h[0].position.x =0.0f;
+	particleArray_h[0].position.y =0.0f;
+	particleArray_h[0].position.z =0.0f;
+
+	particleArray_h[0].color.x = (rand() / ((unsigned)RAND_MAX + 1.0));
+
+	particleArray_h[0].velocity.x = 0.01f;
+	particleArray_h[0].velocity.y = 0.0f;
+	particleArray_h[0].velocity.z = 0.0f;
+
+	int cell_xa= (int) floor(particleArray_h[0].position.x/ cell_size);
+	int cell_ya= (int) floor(particleArray_h[0].position.y/ cell_size);
+	int cell_za= (int) floor(particleArray_h[0].position.z/ cell_size);
+
+	int cellidxa=(cell_xa*boundary+cell_ya)*boundary + cell_za;
+	particleArray_h[0].cellidx= cellidxa;
+
+	if(cellArray_h[cellidxa].counter< maxParticlesPerCell)
+	{
+		cellArray_h[cellidxa].particleidxs[cellArray_h[cellidxa].counter]=0;
+		cellArray_h[cellidxa].counter=cellArray_h[cellidxa].counter+1;
+	}
+
+	particleArray_h[1].position.x =3.0f;
+	particleArray_h[1].position.y =0.6f;
+	particleArray_h[1].position.z =0.0f;
+
+
+	particleArray_h[1].color.x = (rand() / ((unsigned)RAND_MAX + 1.0));
+
+	particleArray_h[1].velocity.x = -0.01f;
+	particleArray_h[1].velocity.y = 0.0f;
+	particleArray_h[1].velocity.z = 0.0f;
+
+	int cell_xb= (int) floor(particleArray_h[1].position.x/ cell_size);
+	int cell_yb= (int) floor(particleArray_h[1].position.y/ cell_size);
+	int cell_zb= (int) floor(particleArray_h[1].position.z/ cell_size);
+
+	int cellidxb=(cell_xb*boundary+cell_yb)*boundary + cell_zb;
+	particleArray_h[1].cellidx= cellidxb;
+
+	if(cellArray_h[cellidxb].counter< maxParticlesPerCell)
+	{
+		cellArray_h[cellidxb].particleidxs[cellArray_h[cellidxb].counter]=1;
+		cellArray_h[cellidxb].counter=cellArray_h[cellidxb].counter+1;
+	}*/
+
 }
 
 void copyParticlesFromHostToDevice()
@@ -302,10 +355,10 @@ void runTest( int argc, char** argv)
     initializeParticles();
 
 
-   /* printf("Time 0");
+    /*printf("Time 0");
     for(int c=0; c<numberOfCells; c++)
     {
-    	if(cellArray_h[c].counter>2)
+    	if(cellArray_h[c].counter>0)
     	{
 			printf("Cell {%d}, counter {%d} \n",c,cellArray_h[c].counter);
 
@@ -337,21 +390,54 @@ void runCuda(GLuint vbo)
 	float4 *dptr;
 	cudaGLMapBufferObject( (void**)&dptr, vbo);
 
+	/*float ex2=0.0f;
+	float ey2=0.0f;
+	float ez2=0.0f;
+
+	for(int i=0; i<numberOfParticles; i++)
+	{
+
+		//Calculate energy of the system
+
+		ex2+= particleArray_h[i].velocity.x*particleArray_h[i].velocity.x;
+		ey2+= particleArray_h[i].velocity.y*particleArray_h[i].velocity.y;
+		ez2+= particleArray_h[i].velocity.z*particleArray_h[i].velocity.z;
+
+	}
+
+	printf("System energy 1: {%f} \n", ex2+ey2+ez2);*/
 
     // execute the kernel
     dim3 block(1, 1, 1);
     dim3 grid(numberOfParticles / block.x, 1, 1);
     //particleInteraction<<< grid, block>>>(dptr, mesh_width, mesh_height, anim);
-    runKernel<<< grid, block>>>(dptr,params, particleArray_d,cellArray_d);
+    runKernel<<< grid, block>>>(dptr,params, particleArray_d,cellArray_d, deltaTime);
 
     copyParticlesFromDeviceToHost();
-   // copyDictionaryFromDeviceToHost();
-   // copyCellsFromDeviceToHost();
 
-    /*printf("Time 1");
+    /*ex2=0.0f;
+	ey2=0.0f;
+	ez2=0.0f;
+
+	for(int i=0; i<numberOfParticles; i++)
+	{
+		//Calculate energy of the system
+
+		ex2+= particleArray_h[i].velocity.x*particleArray_h[i].velocity.x;
+		ey2+= particleArray_h[i].velocity.y*particleArray_h[i].velocity.y;
+		ez2+= particleArray_h[i].velocity.z*particleArray_h[i].velocity.z;
+
+	}
+
+	printf("System energy 2: {%f} \n", ex2+ey2+ez2);
+
+
+    copyCellsFromDeviceToHost();
+
+    printf("Time 1");
 	for(int c=0; c<numberOfCells; c++)
 	{
-		if(cellArray_h[c].counter>2)
+		if(cellArray_h[c].counter>0)
 		{
 			printf("Cell {%d}, counter {%d} \n",c,cellArray_h[c].counter);
 
@@ -531,18 +617,20 @@ void display()
 	glutPostRedisplay();*/
 
 
-
     // Draw the particles
+
+
 	for(int i=0; i<numberOfParticles; i++)
 	{
 		glPushMatrix();
 		glColor3f(particleArray_h[i].color.x,particleArray_h[i].color.y,particleArray_h[i].color.z);
 		glTranslatef(particleArray_h[i].position.x,particleArray_h[i].position.y,particleArray_h[i].position.z );
-
 		glutSolidSphere(particle_size,20,20);
 		glPopMatrix();
 
 	}
+
+
 
 	//glDisable ( GL_LIGHTING ) ;
 
