@@ -29,6 +29,8 @@ typedef struct
 	float damping;
 	float shear;
 	float attraction;
+	float gravity;
+	float boundaryDamping;
 } Parameters;
 
 
