@@ -125,36 +125,36 @@ __device__ void updatePosition(int id, float4* spheres,Parameters params, Partic
 	float z = particleArray[id].position.z + particleArray[id].velocity.z*deltaTime;
 
 	// Boundary check
-	if(x < 0.0)
+	if(x- params.particleRadious < 0.0)
 	{
-		x = -x;
+		x = 2* params.particleRadious - x;
 		particleArray[id].velocity.x = -particleArray[id].velocity.x*params.boundaryDamping;
 	}
-	else if(x > params.boundary)
+	else if(x + params.particleRadious > params.boundary)
 	{
-		x = params.boundary - (x - params.boundary);
+		x = params.boundary - (x +2*params.particleRadious - params.boundary);
 		particleArray[id].velocity.x = -particleArray[id].velocity.x*params.boundaryDamping;
 	}
 
-	if(y < 0.0)
+	if(y- params.particleRadious  < 0.0)
 	{
-		y = -y;
+		y = 2* params.particleRadious-y;
 		particleArray[id].velocity.y = -particleArray[id].velocity.y*params.boundaryDamping;
 	}
-	else if(y > params.boundary)
+	else if(y + params.particleRadious> params.boundary)
 	{
-		y = params.boundary - (y - params.boundary);
+		y = params.boundary - (y+2*params.particleRadious - params.boundary);
 		particleArray[id].velocity.y = -particleArray[id].velocity.y*params.boundaryDamping;
 	}
 
-	if(z < 0.0)
+	if(z- params.particleRadious < 0.0)
 	{
-		z = -z;
+		z = 2* params.particleRadious-z;
 		particleArray[id].velocity.z = -particleArray[id].velocity.z*params.boundaryDamping;
 	}
 	else if(z > params.boundary)
 	{
-		z = params.boundary - (z - params.boundary);
+		z = params.boundary - (z+2*params.particleRadious - params.boundary);
 		particleArray[id].velocity.z = -particleArray[id].velocity.z*params.boundaryDamping;
 	}
 

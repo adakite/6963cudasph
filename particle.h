@@ -24,6 +24,7 @@ typedef struct
 	int maxParticles;
 	int cellsPerDim;
 	int boundary;
+	float mass;
 	float cellSize;
 	float particleRadious;
 	float spring;
