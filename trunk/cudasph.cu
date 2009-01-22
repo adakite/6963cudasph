@@ -87,23 +87,24 @@ const unsigned int window_height = 1024;
 const float particle_size = 0.2f;
 const float cell_size = 2.0f* particle_size;
 
-const float maxVelocity = 1;
-const float minVelocity = -1;
-const float boundary= 32.0;
+const float maxVelocity = 1.0f;
+const float minVelocity = -1.0f;
+const int boundary= 32.0f;
 
-const unsigned int numberOfParticles = 512;
+const unsigned int numberOfParticles = 1024;
 const unsigned int numberOfParticlesPerBlock = 512;
-const unsigned int numberOfCells= ((int)floor((boundary)/cell_size))*((int)floor((boundary)/cell_size))*((int)floor((boundary)/cell_size));
+const unsigned int numberOfCellsPerDim=((int)floor((boundary)/cell_size));
+const unsigned int numberOfCells= numberOfCellsPerDim*numberOfCellsPerDim*numberOfCellsPerDim;
 const unsigned int maxParticlesPerCell=4;
 const float deltaTime=0.2f;
 
-
 const float spring=0.5f;
-const float damping=0.2f;
+const float damping=0.02f;
 const float shear=0.1f;
-const float attraction= 0.01f;
-const float gravity= -0.2f;
-const float boundaryDamping=0.2;
+const float attraction= 0.001f;
+const float gravity= -0.1f;
+const float boundaryDamping=0.001f;
+
 
 /////////////////////////////////////////////////////////////////////////////////
 //Physics variables
@@ -179,6 +180,7 @@ void initializeParameters()
 {
 	params.maxParticles= numberOfParticles;
 	params.maxParticlesPerCell= maxParticlesPerCell;
+	params.cellsPerDim=numberOfCellsPerDim;
 	params.boundary=boundary;
 	params.cellSize=cell_size;
 	params.particleRadious=particle_size;
@@ -193,13 +195,13 @@ void initializeParameters()
 
 void initializeCells()
 {
-	for(unsigned int i = 0; i < boundary; i++)
+	for(unsigned int i = 0; i < numberOfCellsPerDim; i++)
 	{
-		for(unsigned int j = 0; j < boundary; j++)
+		for(unsigned int j = 0; j < numberOfCellsPerDim; j++)
 		{
-			for(unsigned int k = 0; k < boundary; k++)
+			for(unsigned int k = 0; k < numberOfCellsPerDim; k++)
 			{
-				int cellidx=(i*boundary+j)*boundary + k;
+				int cellidx=(i*numberOfCellsPerDim+j)*numberOfCellsPerDim + k;
 				cellArray_h[cellidx].coordinates.x=i;
 				cellArray_h[cellidx].coordinates.y=j;
 				cellArray_h[cellidx].coordinates.z=k;
@@ -235,7 +237,7 @@ void initializeParticles()
 		int cell_y= (int) floor(particleArray_h[i].position.y/ cell_size);
 		int cell_z= (int) floor(particleArray_h[i].position.z/ cell_size);
 
-		int cellidx=(cell_x*boundary+cell_y)*boundary + cell_z;
+		int cellidx=((int)(((int)cell_x*numberOfCellsPerDim)+cell_y)*numberOfCellsPerDim) + cell_z;
 		particleArray_h[i].cellidx= cellidx;
 
 		if(cellArray_h[cellidx].counter< maxParticlesPerCell)
@@ -244,53 +246,6 @@ void initializeParticles()
 			cellArray_h[cellidx].counter=cellArray_h[cellidx].counter+1;
 		}
 	}
-
-	/*particleArray_h[0].position.x =0.0f;
-	particleArray_h[0].position.y =0.0f;
-	particleArray_h[0].position.z =0.0f;
-
-	particleArray_h[0].color.x = (rand() / ((unsigned)RAND_MAX + 1.0));
-
-	particleArray_h[0].velocity.x = 0.01f;
-	particleArray_h[0].velocity.y = 0.0f;
-	particleArray_h[0].velocity.z = 0.0f;
-
-	int cell_xa= (int) floor(particleArray_h[0].position.x/ cell_size);
-	int cell_ya= (int) floor(particleArray_h[0].position.y/ cell_size);
-	int cell_za= (int) floor(particleArray_h[0].position.z/ cell_size);
-
-	int cellidxa=(cell_xa*boundary+cell_ya)*boundary + cell_za;
-	particleArray_h[0].cellidx= cellidxa;
-
-	if(cellArray_h[cellidxa].counter< maxParticlesPerCell)
-	{
-		cellArray_h[cellidxa].particleidxs[cellArray_h[cellidxa].counter]=0;
-		cellArray_h[cellidxa].counter=cellArray_h[cellidxa].counter+1;
-	}
-
-	particleArray_h[1].position.x =3.0f;
-	particleArray_h[1].position.y =0.6f;
-	particleArray_h[1].position.z =0.0f;
-
-
-	particleArray_h[1].color.x = (rand() / ((unsigned)RAND_MAX + 1.0));
-
-	particleArray_h[1].velocity.x = -0.01f;
-	particleArray_h[1].velocity.y = 0.0f;
-	particleArray_h[1].velocity.z = 0.0f;
-
-	int cell_xb= (int) floor(particleArray_h[1].position.x/ cell_size);
-	int cell_yb= (int) floor(particleArray_h[1].position.y/ cell_size);
-	int cell_zb= (int) floor(particleArray_h[1].position.z/ cell_size);
-
-	int cellidxb=(cell_xb*boundary+cell_yb)*boundary + cell_zb;
-	particleArray_h[1].cellidx= cellidxb;
-
-	if(cellArray_h[cellidxb].counter< maxParticlesPerCell)
-	{
-		cellArray_h[cellidxb].particleidxs[cellArray_h[cellidxb].counter]=1;
-		cellArray_h[cellidxb].counter=cellArray_h[cellidxb].counter+1;
-	}*/
 
 }
 
@@ -354,21 +309,6 @@ void runTest( int argc, char** argv)
     initializeCells();
     initializeParticles();
 
-
-    /*printf("Time 0");
-    for(int c=0; c<numberOfCells; c++)
-    {
-    	if(cellArray_h[c].counter>0)
-    	{
-			printf("Cell {%d}, counter {%d} \n",c,cellArray_h[c].counter);
-
-			for (int p=0; p<cellArray_h[c].counter; p++)
-			{
-				printf("Member {%d}, particle {%d} \n",p,cellArray_h[c].particleidxs[p]);
-			}
-		}
-    }*/
-
     // create VBO
 	createVBO(&vbo);
 
@@ -390,23 +330,6 @@ void runCuda(GLuint vbo)
 	float4 *dptr;
 	cudaGLMapBufferObject( (void**)&dptr, vbo);
 
-	/*float ex2=0.0f;
-	float ey2=0.0f;
-	float ez2=0.0f;
-
-	for(int i=0; i<numberOfParticles; i++)
-	{
-
-		//Calculate energy of the system
-
-		ex2+= particleArray_h[i].velocity.x*particleArray_h[i].velocity.x;
-		ey2+= particleArray_h[i].velocity.y*particleArray_h[i].velocity.y;
-		ez2+= particleArray_h[i].velocity.z*particleArray_h[i].velocity.z;
-
-	}
-
-	printf("System energy 1: {%f} \n", ex2+ey2+ez2);*/
-
     // execute the kernel
     dim3 block(1, 1, 1);
     dim3 grid(numberOfParticles / block.x, 1, 1);
@@ -414,39 +337,6 @@ void runCuda(GLuint vbo)
     runKernel<<< grid, block>>>(dptr,params, particleArray_d,cellArray_d, deltaTime);
 
     copyParticlesFromDeviceToHost();
-
-    /*ex2=0.0f;
-	ey2=0.0f;
-	ez2=0.0f;
-
-	for(int i=0; i<numberOfParticles; i++)
-	{
-		//Calculate energy of the system
-
-		ex2+= particleArray_h[i].velocity.x*particleArray_h[i].velocity.x;
-		ey2+= particleArray_h[i].velocity.y*particleArray_h[i].velocity.y;
-		ez2+= particleArray_h[i].velocity.z*particleArray_h[i].velocity.z;
-
-	}
-
-	printf("System energy 2: {%f} \n", ex2+ey2+ez2);
-
-
-    copyCellsFromDeviceToHost();
-
-    printf("Time 1");
-	for(int c=0; c<numberOfCells; c++)
-	{
-		if(cellArray_h[c].counter>0)
-		{
-			printf("Cell {%d}, counter {%d} \n",c,cellArray_h[c].counter);
-
-			for (int p=0; p<cellArray_h[c].counter; p++)
-			{
-				printf("Member {%d}, particle {%d} \n",p,cellArray_h[c].particleidxs[p]);
-			}
-		}
-	}*/
 
     // unmap buffer object
 	cudaGLUnmapBufferObject(vbo);
@@ -537,7 +427,7 @@ void display()
     glEnable(GL_COLOR_MATERIAL);
     glEnable(GL_LIGHT0);
 
-    GLfloat lightpos[] = {-16.0, -16.0, -16.0, 1.0};
+    GLfloat lightpos[] = {-boundary/2, -boundary/2, -boundary/2, 1.0};
     glLightfv(GL_LIGHT0, GL_POSITION, lightpos);
 
     // set view matrix
@@ -557,41 +447,41 @@ void display()
 	glColor3f(0.7f, 0.7f, 0.7f);
 	glBegin(GL_QUADS);
 			glVertex3f(0.0f, 0.0f, 0.0f);
-			glVertex3f(0.0f, 32.0f, 0.0f);
-			glVertex3f( 32.0f, 32.0f, 0.0f);
-			glVertex3f( 32.0f, 0.0f, 0.0f);
+			glVertex3f(0.0f, boundary, 0.0f);
+			glVertex3f( boundary, boundary, 0.0f);
+			glVertex3f( boundary, 0.0f, 0.0f);
 	glEnd();
 	// Draw the left
 	glColor3f(0.7f, 0.7f, 0.7f);
 	glBegin(GL_QUADS);
-			glVertex3f(0.0f, 32.0f, 32.0f);
-			glVertex3f(0.0f, 0.0f, 32.0f);
+			glVertex3f(0.0f, boundary, boundary);
+			glVertex3f(0.0f, 0.0f, boundary);
 			glVertex3f(0.0f, 0.0f, 0.0f);
-			glVertex3f(0.0f, 32.0f, 0.0f);
+			glVertex3f(0.0f, boundary, 0.0f);
 	glEnd();
 	// Draw the right
 	glColor3f(0.7f, 0.7f, 0.7f);
 	glBegin(GL_QUADS);
-			glVertex3f(32.0f, 32.0f, 32.0f);
-			glVertex3f(32.0f, 0.0f, 32.0f);
-			glVertex3f(32.0f, 0.0f, 0.0f);
-			glVertex3f(32.0f, 32.0f, 0.0f);
+			glVertex3f(boundary, boundary, boundary);
+			glVertex3f(boundary, 0.0f, boundary);
+			glVertex3f(boundary, 0.0f, 0.0f);
+			glVertex3f(boundary, boundary, 0.0f);
 	glEnd();
 	// Draw the top
 	glColor3f(0.7f, 0.7f, 0.7f);
 	glBegin(GL_QUADS);
-			glVertex3f(32.0f, 32.0f, 32.0f);
-			glVertex3f(0.0f, 32.0f, 32.0f);
-			glVertex3f(0.0f, 32.0f, 0.0f);
-			glVertex3f(32.0f, 32.0f, 0.0f);
+			glVertex3f(boundary, boundary, boundary);
+			glVertex3f(0.0f, boundary, boundary);
+			glVertex3f(0.0f, boundary, 0.0f);
+			glVertex3f(boundary, boundary, 0.0f);
 	glEnd();
 	// Draw the bottom
 	glColor3f(0.7f, 0.7f, 0.7f);
 	glBegin(GL_QUADS);
-			glVertex3f(32.0f, 0.0f, 32.0f);
-			glVertex3f(0.0f, 0.0f, 32.0f);
+			glVertex3f(boundary, 0.0f, boundary);
+			glVertex3f(0.0f, 0.0f, boundary);
 			glVertex3f(0.0f, 0.0f, 0.0f);
-			glVertex3f(32.0f, 0.0f, 0.0f);
+			glVertex3f(boundary, 0.0f, 0.0f);
 	glEnd();
 	glPopMatrix();
 
@@ -600,8 +490,8 @@ void display()
 	//Draw the wired cube
 	glPushMatrix();
 	glColor3f(1.0, 1.0, 1.0);
-	glTranslatef(16.0f,16.0f,16.0f);
-	glutWireCube(32.0);
+	glTranslatef(boundary/2,boundary/2,boundary/2);
+	glutWireCube(boundary);
 	glPopMatrix();
 
     /*//Render from the vbo

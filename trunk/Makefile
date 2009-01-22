@@ -43,6 +43,6 @@ USEGLLIB	:= 1
 USEGLUT		:= 1
 
 ################################################################################
-# Rules and targets
-
+# Rules and targets#
+#emu=1
 include ../../common/common.mk
