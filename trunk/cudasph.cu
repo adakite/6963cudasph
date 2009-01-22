@@ -43,20 +43,20 @@ const float maxVelocity = 1.0f;
 const float minVelocity = -1.0f;
 const int boundary= 32.0f;
 
-const unsigned int numberOfParticles = 256;
-const unsigned int numberOfParticlesPerBlock = 512;
+const unsigned int numberOfParticles = 2048;
+const unsigned int numberOfParticlesPerBlock = 128;
 const unsigned int numberOfCellsPerDim=((int)floor((boundary)/cell_size));
 const unsigned int numberOfCells= numberOfCellsPerDim*numberOfCellsPerDim*numberOfCellsPerDim;
 const unsigned int maxParticlesPerCell=4;
 const float deltaTime=0.1f;
 
+const float mass=1.5f;
 const float spring=0.2f;
 const float damping=0.2f;
 const float shear=0.1f;
 const float attraction= 0.01f;
 const float gravity= -0.2f;
-const float boundaryDamping=0.5f;
-
+const float boundaryDamping=0.3f;
 
 /////////////////////////////////////////////////////////////////////////////////
 //Physics variables
@@ -130,6 +130,7 @@ int main( int argc, char** argv)
 
 void initializeParameters()
 {
+	params.mass=mass;
 	params.maxParticles= numberOfParticles;
 	params.maxParticlesPerCell= maxParticlesPerCell;
 	params.cellsPerDim=numberOfCellsPerDim;
@@ -262,7 +263,7 @@ void runTest( int argc, char** argv)
     initializeParticles();
 
     // create VBO
-	createVBO(&vbo);
+	//createVBO(&vbo);
 
     // run the cuda part
     copyParticlesFromHostToDevice();
@@ -280,10 +281,10 @@ void runCuda(GLuint vbo)
 {
 	// map OpenGL buffer object for writing from CUDA
 	float4 *dptr;
-	cudaGLMapBufferObject( (void**)&dptr, vbo);
+	//cudaGLMapBufferObject( (void**)&dptr, vbo);
 
     // execute the kernel
-    dim3 block(1, 1, 1);
+    dim3 block(numberOfParticlesPerBlock, 1, 1);
     dim3 grid(numberOfParticles / block.x, 1, 1);
     //particleInteraction<<< grid, block>>>(dptr, mesh_width, mesh_height, anim);
     runKernel<<< grid, block>>>(dptr,params, particleArray_d,cellArray_d, deltaTime);
@@ -291,7 +292,7 @@ void runCuda(GLuint vbo)
     copyParticlesFromDeviceToHost();
 
     // unmap buffer object
-	cudaGLUnmapBufferObject(vbo);
+	//cudaGLUnmapBufferObject(vbo);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -506,7 +507,6 @@ void mouse(int button, int state, int x, int y)
     } else if (state == GLUT_UP) {
         mouse_buttons = 0;
     }
-
     mouse_old_x = x;
     mouse_old_y = y;
     glutPostRedisplay();
