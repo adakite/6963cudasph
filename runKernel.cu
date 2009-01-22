@@ -34,9 +34,9 @@ __device__ float3 evaluateCollision(Particle one,Particle two, Parameters params
 		// dashpot (damping) force
 		force += params.damping*relVel;
 		// tangential shear force
-		force += params.shear*tanVel;
+		//force += params.shear*tanVel;
 		// attraction
-		force += params.attraction*relPos;
+		//force += params.attraction*relPos;
 		//printf("COLLISION!!!!!!!");
 
 	}

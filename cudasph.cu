@@ -39,16 +39,18 @@ const unsigned int window_height = 1024;
 const float particle_size = 0.2f;
 const float cell_size = 2.0f* particle_size;
 
-const float maxVelocity = 1.0f;
-const float minVelocity = -1.0f;
+const float maxVelocity = 0.5f;
+const float minVelocity = -0.5f;
 const int boundary= 32.0f;
 
-const unsigned int numberOfParticles = 2048;
-const unsigned int numberOfParticlesPerBlock = 128;
+const unsigned int numberOfParticles = 4096;
+const unsigned int numberOfParticlesPerBlock = 32;
 const unsigned int numberOfCellsPerDim=((int)floor((boundary)/cell_size));
 const unsigned int numberOfCells= numberOfCellsPerDim*numberOfCellsPerDim*numberOfCellsPerDim;
 const unsigned int maxParticlesPerCell=4;
 const float deltaTime=0.1f;
+unsigned int timer;
+unsigned int iterations;
 
 const float mass=1.5f;
 const float spring=0.2f;
@@ -83,6 +85,7 @@ float rotate_x = 0.0, rotate_y = 0.0;
 float translate_z = -84.0;
 float translate_x = -16.0;
 float translate_y = -16.0;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // kernels
@@ -269,6 +272,7 @@ void runTest( int argc, char** argv)
     copyParticlesFromHostToDevice();
     copyCellsFromHostToDevice();
 
+    cutCreateTimer(&timer);
     runCuda(vbo);
     // start rendering mainloop
     glutMainLoop();
@@ -286,8 +290,14 @@ void runCuda(GLuint vbo)
     // execute the kernel
     dim3 block(numberOfParticlesPerBlock, 1, 1);
     dim3 grid(numberOfParticles / block.x, 1, 1);
-    //particleInteraction<<< grid, block>>>(dptr, mesh_width, mesh_height, anim);
+
+    cutStartTimer(timer);
     runKernel<<< grid, block>>>(dptr,params, particleArray_d,cellArray_d, deltaTime);
+	cutStopTimer(timer);
+	float milliseconds = cutGetTimerValue(timer);
+	iterations=iterations+1;
+	printf("%d particles, iterations %d , total time %0f ms\n", numberOfParticles,iterations, milliseconds/iterations);
+
 
     copyParticlesFromDeviceToHost();
 
@@ -491,9 +501,29 @@ void keyboard( unsigned char key, int /*x*/, int /*y*/)
 	 switch( key)
 	 {
 	    case( 27) :
-
 	        exit( 0);
+	    case 'j':
+	    	translate_z +=  1.0f;
+			break;
+		case 'J':
+			translate_z -=  1.0f;
+			break;
+		case 'k':
+			translate_x +=  1.0f;
+			break;
+		case 'K':
+			translate_x -=  1.0f;
+			break;
+		case 'l':
+			translate_y +=  1.0f;
+			break;
+		case 'L':
+			translate_y -=  1.0f;
+			break;
+
 	 }
+	     glutPostRedisplay(); // Redraw the scene
+
 
 }
 
