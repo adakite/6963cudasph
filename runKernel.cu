@@ -26,7 +26,7 @@ __device__ float3 evaluateCollision(Particle one,Particle two, Parameters params
 		relVel.z = two.velocity.z - one.velocity.z;
 
 		// relative tangential velocity
-		//float3 tanVel = relVel - (dot(relVel, norm) * norm);
+		float3 tanVel = relVel - (dot(relVel, norm) * norm);
 		// spring force
 		force = -params.spring*(collideDist - dist) * norm;
 		//John suggested
@@ -34,9 +34,10 @@ __device__ float3 evaluateCollision(Particle one,Particle two, Parameters params
 		// dashpot (damping) force
 		force += params.damping*relVel;
 		// tangential shear force
-		//force += params.shear*tanVel;
+		force += params.shear*tanVel;
 		// attraction
-		//force += params.attraction*relPos;
+		force += params.attraction*relPos;
+		//printf("COLLISION!!!!!!!");
 
 	}
 
@@ -75,24 +76,27 @@ __device__ void computeInteractions(int id,Parameters params, Particle* particle
 	//Iterate over neighbor cells
 	float3 force = make_float3(0.0f);
 
+	Cell mCell= cellArray[cellidx];
+
+	//printf("particle id {%d},coor {%d}{%d}{%d} \n", id, mCell.coordinates.x, mCell.coordinates.y, mCell.coordinates.z);
 	for(int x=-1; x<=1; x++)
 	{
 		for(int y=-1; y<=1; y++)
 		{
 			for(int z=-1; z<=1; z++)
 			{
-				Cell mCell= cellArray[cellidx];
 				int nCellx=mCell.coordinates.x+x;
 				int nCelly=mCell.coordinates.y+y;
 				int nCellz=mCell.coordinates.z+z;
 
-				if(nCellx>=0 && nCellx<params.boundary && nCelly>=0 && nCelly<params.boundary && nCellz>=0 && nCellz<params.boundary)
+				if(nCellx>=0 && nCellx<params.cellsPerDim && nCelly>=0 && nCelly<params.cellsPerDim && nCellz>=0 && nCellz<params.cellsPerDim)
 				{
-					int neighboridx= (nCellx*params.boundary+nCelly)*params.boundary + nCellz;
+					int neighboridx= ((int)(((int)nCellx*params.cellsPerDim)+nCelly)*params.cellsPerDim) + nCellz;
 					Cell nCell= cellArray[neighboridx];
 
 					if(nCell.counter>0)
 					{
+						//printf(" Analyzed: particle id {%d}, neighbor coor {%d}{%d}{%d} \n", id, nCellx, nCelly, nCellz);
 						force+=collisionsInCell(id,nCell, params, particleArray);
 					}
 				}
@@ -100,6 +104,7 @@ __device__ void computeInteractions(int id,Parameters params, Particle* particle
 
 		}
 	}
+	//printf(" \n");
 
 	__syncthreads();
 
@@ -153,7 +158,7 @@ __device__ void updatePosition(int id, float4* spheres,Parameters params, Partic
 		particleArray[id].velocity.z = -particleArray[id].velocity.z*params.boundaryDamping;
 	}
 
-	makeSphere(spheres, id, x , y, z , params.particleRadious);
+	//makeSphere(spheres, id, x , y, z , params.particleRadious);
 
 	particleArray[id].position.x = x;
 	particleArray[id].position.y = y;
@@ -164,7 +169,7 @@ __device__ void updatePosition(int id, float4* spheres,Parameters params, Partic
 	int cell_y= (int) floor(y/ params.cellSize);
 	int cell_z= (int) floor(z/ params.cellSize);
 
-	int cellidx= (cell_x*params.boundary+cell_y)*params.boundary + cell_z;
+	int cellidx= ((int)(((int)cell_x*params.cellsPerDim)+cell_y)*params.cellsPerDim) + cell_z;
 	particleArray[id].cellidx= cellidx;
 	cellArray[cellidx].counter=0;
 
@@ -188,9 +193,9 @@ __device__ void updateCells (int id,Parameters params, Particle* particleArray, 
 				{
 					cellArray[cellidx].particleidxs[counter]=id;
 
-					if(counter >= cellArray[cellidx].counter)
+					if(counter >= cellArray[cellidx].counter && counter< params.maxParticlesPerCell)
 					{
-						cellArray[cellidx].counter=counter+1;;
+						cellArray[cellidx].counter=counter+1;
 					}
 				}
 				counter=counter+1;
