@@ -1,5 +1,4 @@
 
-
 #ifdef _WIN32
 #  define WINDOWS_LEAN_AND_MEAN
 #  define NOMINMAX
@@ -36,29 +35,32 @@
 const unsigned int window_width = 1024;
 const unsigned int window_height = 1024;
 
-const float particle_size = 0.2f;
+const float particle_size = 0.5f;
 const float cell_size = 2.0f* particle_size;
 
-const float maxVelocity = 0.5f;
-const float minVelocity = -0.5f;
+const float maxVelocity = 10.0f;
+const float minVelocity = -10.0f;
 const int boundary= 32.0f;
 
-const unsigned int numberOfParticles = 4096;
+const unsigned int numberOfParticles = 1024;
 const unsigned int numberOfParticlesPerBlock = 32;
 const unsigned int numberOfCellsPerDim=((int)floor((boundary)/cell_size));
 const unsigned int numberOfCells= numberOfCellsPerDim*numberOfCellsPerDim*numberOfCellsPerDim;
 const unsigned int maxParticlesPerCell=4;
-const float deltaTime=0.1f;
+const float deltaTime=0.05f;
+
 unsigned int timer;
 unsigned int iterations;
 
-const float mass=1.5f;
-const float spring=0.2f;
-const float damping=0.2f;
+const float mass=1.0f;
+const float spring=1.0f;
+const float globalDamping=1.0f;
 const float shear=0.1f;
 const float attraction= 0.01f;
-const float gravity= -0.2f;
-const float boundaryDamping=0.3f;
+const float gravityValue= -10.0f;
+const float boundaryDamping=0.7f;
+const float collisionDamping=0.01f;
+
 
 /////////////////////////////////////////////////////////////////////////////////
 //Physics variables
@@ -141,11 +143,13 @@ void initializeParameters()
 	params.cellSize=cell_size;
 	params.particleRadious=particle_size;
 	params.spring=spring;
-	params.damping=damping;
+	params.globalDamping=globalDamping;
 	params.shear=shear;
 	params.attraction=attraction;
-	params.gravity=gravity;
 	params.boundaryDamping=boundaryDamping;
+	params.gravity=make_float3(0.0f);
+	params.gravity.y= gravityValue;
+	params.collisionDamping=collisionDamping;
 
 }
 
@@ -293,14 +297,11 @@ void runCuda(GLuint vbo)
 
     cutStartTimer(timer);
     runKernel<<< grid, block>>>(dptr,params, particleArray_d,cellArray_d, deltaTime);
-	cutStopTimer(timer);
+    copyParticlesFromDeviceToHost();
+    cutStopTimer(timer);
 	float milliseconds = cutGetTimerValue(timer);
 	iterations=iterations+1;
 	printf("%d particles, iterations %d , total time %0f ms\n", numberOfParticles,iterations, milliseconds/iterations);
-
-
-    copyParticlesFromDeviceToHost();
-
     // unmap buffer object
 	//cudaGLUnmapBufferObject(vbo);
 }
@@ -489,7 +490,6 @@ void display()
 
     glutSwapBuffers();
     glutPostRedisplay();
-
 
     anim += 0.01;
 }

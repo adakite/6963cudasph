@@ -28,11 +28,13 @@ typedef struct
 	float cellSize;
 	float particleRadious;
 	float spring;
-	float damping;
+	float globalDamping;
 	float shear;
 	float attraction;
-	float gravity;
 	float boundaryDamping;
+	float collisionDamping;
+	float3 gravity;
+
 } Parameters;
 
 
