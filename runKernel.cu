@@ -152,7 +152,7 @@ __device__ void updatePosition(int id, float4* spheres,Parameters params, Partic
 		z = 2* params.particleRadious-z;
 		particleArray[id].velocity.z = -particleArray[id].velocity.z*params.boundaryDamping;
 	}
-	else if(z > params.boundary)
+	else if(z+params.particleRadious > params.boundary)
 	{
 		z = params.boundary - (z+2*params.particleRadious - params.boundary);
 		particleArray[id].velocity.z = -particleArray[id].velocity.z*params.boundaryDamping;
