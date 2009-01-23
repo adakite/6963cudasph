@@ -82,9 +82,9 @@ Cell* cellArray_d;
 int mouse_old_x, mouse_old_y;
 int mouse_buttons = 0;
 float rotate_x = 0.0, rotate_y = 0.0;
-float translate_z = -84.0;
-float translate_x = -16.0;
-float translate_y = -16.0;
+float translate_z = -3*boundary;
+float translate_x = -boundary/2.0;
+float translate_y = -boundary/2.0;
 
 
 ////////////////////////////////////////////////////////////////////////////////
