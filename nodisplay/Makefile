@@ -34,7 +34,7 @@
 ################################################################################
 
 # Add source files here
-EXECUTABLE	:= cudasph
+EXECUTABLE	:= cudasphnodisplay
 # Cuda source files (compiled with cudacc)
 CUFILES		:= cudasph.cu
 
