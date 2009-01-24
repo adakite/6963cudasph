@@ -1,5 +1,4 @@
 
-
 #ifdef _WIN32
 #  define WINDOWS_LEAN_AND_MEAN
 #  define NOMINMAX
@@ -11,7 +10,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-
 
 // includes, GL
 #include <GL/glew.h>
@@ -26,9 +24,9 @@
 #include <cutil.h>
 #include <cutil_gl_error.h>
 #include <cuda_gl_interop.h>
-
-#include <sphere.c>
 #include <particle.h>
+#include <sphere.c>
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,27 +34,32 @@
 const unsigned int window_width = 1024;
 const unsigned int window_height = 1024;
 
-const float particle_size = 0.2f;
+const float particle_size = 0.5f;
 const float cell_size = 2.0f* particle_size;
 
-const float maxVelocity = 1.0f;
-const float minVelocity = -1.0f;
+const float maxVelocity = 10.0f;
+const float minVelocity = -10.0f;
 const int boundary= 32.0f;
 
-const unsigned int numberOfParticles = 2048;
-const unsigned int numberOfParticlesPerBlock = 128;
+const unsigned int numberOfParticles = 1024;
+const unsigned int numberOfParticlesPerBlock = 32;
 const unsigned int numberOfCellsPerDim=((int)floor((boundary)/cell_size));
 const unsigned int numberOfCells= numberOfCellsPerDim*numberOfCellsPerDim*numberOfCellsPerDim;
 const unsigned int maxParticlesPerCell=4;
-const float deltaTime=0.1f;
+const float deltaTime=0.05f;
 
-const float mass=1.5f;
-const float spring=0.2f;
-const float damping=0.2f;
+unsigned int timer;
+unsigned int iterations;
+
+const float mass=1.0f;
+const float spring=1.0f;
+const float globalDamping=1.0f;
 const float shear=0.1f;
 const float attraction= 0.01f;
-const float gravity= -0.2f;
-const float boundaryDamping=0.3f;
+const float gravityValue= -10.0f;
+const float boundaryDamping=0.7f;
+const float collisionDamping=0.01f;
+
 
 /////////////////////////////////////////////////////////////////////////////////
 //Physics variables
@@ -80,9 +83,10 @@ Cell* cellArray_d;
 int mouse_old_x, mouse_old_y;
 int mouse_buttons = 0;
 float rotate_x = 0.0, rotate_y = 0.0;
-float translate_z = -84.0;
-float translate_x = -16.0;
-float translate_y = -16.0;
+float translate_z = -3*boundary;
+float translate_x = -boundary/2.0;
+float translate_y = -boundary/2.0;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // kernels
@@ -138,11 +142,13 @@ void initializeParameters()
 	params.cellSize=cell_size;
 	params.particleRadious=particle_size;
 	params.spring=spring;
-	params.damping=damping;
+	params.globalDamping=globalDamping;
 	params.shear=shear;
 	params.attraction=attraction;
-	params.gravity=gravity;
 	params.boundaryDamping=boundaryDamping;
+	params.gravity=make_float3(0.0f);
+	params.gravity.y= gravityValue;
+	params.collisionDamping=collisionDamping;
 
 }
 
@@ -269,6 +275,7 @@ void runTest( int argc, char** argv)
     copyParticlesFromHostToDevice();
     copyCellsFromHostToDevice();
 
+    cutCreateTimer(&timer);
     runCuda(vbo);
     // start rendering mainloop
     glutMainLoop();
@@ -286,11 +293,14 @@ void runCuda(GLuint vbo)
     // execute the kernel
     dim3 block(numberOfParticlesPerBlock, 1, 1);
     dim3 grid(numberOfParticles / block.x, 1, 1);
-    //particleInteraction<<< grid, block>>>(dptr, mesh_width, mesh_height, anim);
+
+    cutStartTimer(timer);
     runKernel<<< grid, block>>>(dptr,params, particleArray_d,cellArray_d, deltaTime);
-
     copyParticlesFromDeviceToHost();
-
+    cutStopTimer(timer);
+	float milliseconds = cutGetTimerValue(timer);
+	iterations=iterations+1;
+	printf("%d particles, iterations %d , total time %0f ms\n", numberOfParticles,iterations, milliseconds/iterations);
     // unmap buffer object
 	//cudaGLUnmapBufferObject(vbo);
 }
@@ -480,7 +490,6 @@ void display()
     glutSwapBuffers();
     glutPostRedisplay();
 
-
     anim += 0.01;
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -491,9 +500,29 @@ void keyboard( unsigned char key, int /*x*/, int /*y*/)
 	 switch( key)
 	 {
 	    case( 27) :
-
 	        exit( 0);
+	    case 'j':
+	    	translate_z +=  1.0f;
+			break;
+		case 'J':
+			translate_z -=  1.0f;
+			break;
+		case 'k':
+			translate_x +=  1.0f;
+			break;
+		case 'K':
+			translate_x -=  1.0f;
+			break;
+		case 'l':
+			translate_y +=  1.0f;
+			break;
+		case 'L':
+			translate_y -=  1.0f;
+			break;
+
 	 }
+	     glutPostRedisplay(); // Redraw the scene
+
 
 }
 
@@ -528,4 +557,5 @@ void motion(int x, int y)
     mouse_old_x = x;
     mouse_old_y = y;
 }
+
 
