@@ -8,31 +8,32 @@ __device__ float3 evaluateCollision(Particle one,Particle two, Parameters params
 	relPos.x = two.position.x - one.position.x;
 	relPos.y = two.position.y - one.position.y;
 	relPos.z = two.position.z - one.position.z;
-	float dist = length(relPos);
 
+	float dist = length(relPos);
 	float collideDist = params.particleRadious + params.particleRadious;
+
+	//Relative position normalized
+	float3 norm = relPos / dist;
+
+	// relative velocity
+	float3 relVel;
+	relVel.x = two.velocity.x - one.velocity.x;
+	relVel.y = two.velocity.y - one.velocity.y;
+	relVel.z = two.velocity.z - one.velocity.z;
+
+	float3 tanVel = relVel - (dot(relVel, norm) * norm);
 
 	float3 force = make_float3(0.0f);
 
-	if (dist < collideDist)
+	if (dist < 1.2* collideDist)
 	{
-		//Relative position normalized
-		float3 norm = relPos / dist;
-
-		// relative velocity
-		float3 relVel;
-		relVel.x = two.velocity.x - one.velocity.x;
-		relVel.y = two.velocity.y - one.velocity.y;
-		relVel.z = two.velocity.z - one.velocity.z;
 
 		// relative tangential velocity
 		float3 tanVel = relVel - (dot(relVel, norm) * norm);
 		// spring force
 		force = -params.spring*(collideDist - dist) * norm;
-		//John suggested
-		//force= -params.spring* (dot(relVel, norm) * norm);
 		// dashpot (damping) force
-		force += params.damping*relVel;
+		force += params.collisionDamping*relVel;
 		// tangential shear force
 		force += params.shear*tanVel;
 		// attraction
@@ -109,8 +110,11 @@ __device__ void computeInteractions(int id,Parameters params, Particle* particle
 	__syncthreads();
 
 	//Modify velocity
-	particleArray[id].velocity= particleArray[id].velocity+ force;
+	float R_two=  (1- params.globalDamping * (deltaTime/2));
+	float R_one= (1+ params.globalDamping * (deltaTime/2));
 
+	particleArray[id].velocity= particleArray[id].velocity * (R_two/R_one)  + (deltaTime/(R_one*params.mass)) * (params.gravity + force);
+	__syncthreads();
 }
 
 __device__ void updatePosition(int id, float4* spheres,Parameters params, Particle* particleArray,Cell* cellArray,float deltaTime )
@@ -118,7 +122,7 @@ __device__ void updatePosition(int id, float4* spheres,Parameters params, Partic
 
 	cellArray[particleArray[id].cellidx].counter=0;
 
-	particleArray[id].velocity.y += gravity;
+
 	 // Update particle position
 	float x = particleArray[id].position.x + particleArray[id].velocity.x*deltaTime;
 	float y = particleArray[id].position.y + particleArray[id].velocity.y*deltaTime;
@@ -152,7 +156,7 @@ __device__ void updatePosition(int id, float4* spheres,Parameters params, Partic
 		z = 2* params.particleRadious-z;
 		particleArray[id].velocity.z = -particleArray[id].velocity.z*params.boundaryDamping;
 	}
-	else if(z > params.boundary)
+	else if(z+params.particleRadious > params.boundary)
 	{
 		z = params.boundary - (z+2*params.particleRadious - params.boundary);
 		particleArray[id].velocity.z = -particleArray[id].velocity.z*params.boundaryDamping;
@@ -232,6 +236,4 @@ __global__ void runKernel(float4* spheres, Parameters params, Particle* particle
    __syncthreads();
 
 }
-
-
 

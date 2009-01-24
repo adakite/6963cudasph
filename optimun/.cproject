@@ -19,7 +19,7 @@
 <folderInfo id="cdt.managedbuild.config.macosx.exe.release.1079222554." name="/" resourcePath="">
 <toolChain id="cdt.managedbuild.toolchain.gnu.macosx.exe.release.1729602909" name="MacOSX GCC" superClass="cdt.managedbuild.toolchain.gnu.macosx.exe.release">
 <targetPlatform id="cdt.managedbuild.target.gnu.platform.macosx.exe.release.329159024" name="Debug Platform" superClass="cdt.managedbuild.target.gnu.platform.macosx.exe.release"/>
-<builder buildPath="${workspace_loc:/6963SPHProject}" id="cdt.managedbuild.target.gnu.builder.macosx.exe.release.965027614" incrementalBuildTarget="" keepEnvironmentInBuildfile="false" managedBuildOn="false" name="Gnu Make Builder" superClass="cdt.managedbuild.target.gnu.builder.macosx.exe.release"/>
+<builder buildPath="${workspace_loc:/6963SPHProjectOptimun}" id="cdt.managedbuild.target.gnu.builder.macosx.exe.release.965027614" incrementalBuildTarget="" keepEnvironmentInBuildfile="false" managedBuildOn="false" name="Gnu Make Builder" superClass="cdt.managedbuild.target.gnu.builder.macosx.exe.release"/>
 <tool id="cdt.managedbuild.tool.macosx.c.linker.macosx.exe.release.234337732" name="MacOS X C Linker" superClass="cdt.managedbuild.tool.macosx.c.linker.macosx.exe.release"/>
 <tool id="cdt.managedbuild.tool.macosx.cpp.linker.macosx.exe.release.510618255" name="MacOS X C++ Linker" superClass="cdt.managedbuild.tool.macosx.cpp.linker.macosx.exe.release">
 <inputType id="cdt.managedbuild.tool.macosx.cpp.linker.input.1880452077" superClass="cdt.managedbuild.tool.macosx.cpp.linker.input">
@@ -45,6 +45,10 @@
 </folderInfo>
 </configuration>
 </storageModule>
+
+<storageModule moduleId="org.eclipse.cdt.core.externalSettings"/>
+<storageModule moduleId="org.eclipse.cdt.internal.ui.text.commentOwnerProjectMappings"/>
+<storageModule moduleId="org.eclipse.cdt.core.language.mapping"/>
 <storageModule moduleId="scannerConfiguration">
 <autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId="org.eclipse.cdt.make.core.GCCStandardMakePerProjectProfile"/>
 <profile id="org.eclipse.cdt.make.core.GCCStandardMakePerProjectProfile">
@@ -294,9 +298,6 @@
 </profile>
 </scannerConfigBuildInfo>
 </storageModule>
-<storageModule moduleId="org.eclipse.cdt.core.externalSettings"/>
-<storageModule moduleId="org.eclipse.cdt.internal.ui.text.commentOwnerProjectMappings"/>
-<storageModule moduleId="org.eclipse.cdt.core.language.mapping"/>
 </cconfiguration>
 </storageModule>
 <storageModule moduleId="cdtBuildSystem" version="4.0.0">
