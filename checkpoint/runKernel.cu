@@ -117,7 +117,7 @@ __device__ void computeInteractions(int id,Parameters params, Particle* particle
 	__syncthreads();
 }
 
-__device__ void updatePosition(int id, float4* spheres,Parameters params, Particle* particleArray,Cell* cellArray,float deltaTime )
+__device__ void updatePosition(int id, float4* spheres , Parameters params, Particle* particleArray,Cell* cellArray,float deltaTime )
 {
 
 	cellArray[particleArray[id].cellidx].counter=0;
@@ -162,7 +162,7 @@ __device__ void updatePosition(int id, float4* spheres,Parameters params, Partic
 		particleArray[id].velocity.z = -particleArray[id].velocity.z*params.boundaryDamping;
 	}
 
-	//makeSphere(spheres, id, x , y, z , params.particleRadious);
+	makeSphere(spheres, id, x , y, z,params.particleRadious);
 
 	particleArray[id].position.x = x;
 	particleArray[id].position.y = y;
@@ -221,7 +221,7 @@ __device__ void updateCells (int id,Parameters params, Particle* particleArray, 
 }
 
 
-__global__ void runKernel(float4* spheres, Parameters params, Particle* particleArray, Cell* cellArray, float deltaTime)
+__global__ void runKernel(float4* spheres,  Parameters params, Particle* particleArray, Cell* cellArray, float deltaTime)
 {
 	// Get id for current particle
    unsigned int id = blockIdx.x* blockDim.x + threadIdx.x;
@@ -229,7 +229,7 @@ __global__ void runKernel(float4* spheres, Parameters params, Particle* particle
    computeInteractions(id,params,particleArray, cellArray);
    __syncthreads();
 
-   updatePosition(id,spheres, params, particleArray, cellArray,deltaTime);
+   updatePosition(id,spheres,params, particleArray, cellArray,deltaTime);
    __syncthreads();
 
    updateCells (id, params, particleArray, cellArray);

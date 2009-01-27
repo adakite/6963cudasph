@@ -27,19 +27,18 @@
 #include <particle.h>
 #include <sphere.c>
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // constants
 const unsigned int window_width = 1024;
 const unsigned int window_height = 1024;
 
-const float particle_size = 0.5f;
+const float particle_size = 0.2f;
 const float cell_size = 2.0f* particle_size;
 
 const float maxVelocity = 10.0f;
 const float minVelocity = -10.0f;
 const int boundary= 32.0f;
+
 
 const unsigned int numberOfParticles = 1024;
 const unsigned int numberOfParticlesPerBlock = 32;
@@ -69,6 +68,8 @@ Parameters params;
 /////////////////////////////////////////////////////////////////////////////////
 // vbo variables
 GLuint vbo;
+
+
 
 // particle arrays
 Particle* particleArray_h = (Particle*) malloc(numberOfParticles*sizeof(Particle));
@@ -111,6 +112,7 @@ void runTest( int argc, char** argv);
 CUTBoolean initGL();
 void createVBO(GLuint* vbo);
 void deleteVBO(GLuint* vbo);
+
 
 // rendering callbacks
 void display();
@@ -269,7 +271,7 @@ void runTest( int argc, char** argv)
     initializeParticles();
 
     // create VBO
-	//createVBO(&vbo);
+	createVBO(&vbo);
 
     // run the cuda part
     copyParticlesFromHostToDevice();
@@ -281,6 +283,7 @@ void runTest( int argc, char** argv)
     glutMainLoop();
 }
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //! Run the Cuda part of the computation
 ////////////////////////////////////////////////////////////////////////////////
@@ -288,21 +291,21 @@ void runCuda(GLuint vbo)
 {
 	// map OpenGL buffer object for writing from CUDA
 	float4 *dptr;
-	//cudaGLMapBufferObject( (void**)&dptr, vbo);
+	cudaGLMapBufferObject( (void**)&dptr, vbo);
 
     // execute the kernel
     dim3 block(numberOfParticlesPerBlock, 1, 1);
     dim3 grid(numberOfParticles / block.x, 1, 1);
 
     cutStartTimer(timer);
-    runKernel<<< grid, block>>>(dptr,params, particleArray_d,cellArray_d, deltaTime);
-    copyParticlesFromDeviceToHost();
+    runKernel<<< grid, block>>>(dptr, params, particleArray_d,cellArray_d, deltaTime);
+    //copyParticlesFromDeviceToHost();
     cutStopTimer(timer);
 	float milliseconds = cutGetTimerValue(timer);
 	iterations=iterations+1;
 	printf("%d particles, iterations %d , total time %0f ms\n", numberOfParticles,iterations, milliseconds/iterations);
     // unmap buffer object
-	//cudaGLUnmapBufferObject(vbo);
+	cudaGLUnmapBufferObject(vbo);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -360,7 +363,7 @@ void createVBO(GLuint* vbo)
 
     // register buffer object with CUDA
     cudaGLRegisterBufferObject(*vbo);
-    //CUT_CHECK_ERROR_GL();
+    CUT_CHECK_ERROR_GL();
 }
 
 
@@ -377,9 +380,6 @@ void deleteVBO( GLuint* vbo)
     *vbo = 0;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-//! Display callback
-////////////////////////////////////////////////////////////////////////////////
 void display()
 {
 
@@ -402,8 +402,6 @@ void display()
     glRotatef(rotate_y, 0.0, 1.0, 0.0);
 
     //Draw the walls
-
-    //glDepthMask(GL_FALSE);
 
 	glPushMatrix();
 	// Draw the Back
@@ -448,8 +446,6 @@ void display()
 	glEnd();
 	glPopMatrix();
 
-	//glDepthMask(GL_TRUE);
-
 	//Draw the wired cube
 	glPushMatrix();
 	glColor3f(1.0, 1.0, 1.0);
@@ -457,22 +453,19 @@ void display()
 	glutWireCube(boundary);
 	glPopMatrix();
 
-    /*//Render from the vbo
+	glShadeModel(GL_SMOOTH);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glVertexPointer(4, GL_FLOAT, 0, 0);
 
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glColor3f(1.0, 0.0, 0.0);
-	glDrawArrays(GL_SPHERE, 0, numberOfParticles);
+	glDrawArrays(GL_TRIANGLES, 0, numberOfParticles*60);
 	glDisableClientState(GL_VERTEX_ARRAY);
-
-	glutSwapBuffers();
-	glutPostRedisplay();*/
 
 
     // Draw the particles
 
-
+/*
 	for(int i=0; i<numberOfParticles; i++)
 	{
 		glPushMatrix();
@@ -481,7 +474,7 @@ void display()
 		glutSolidSphere(particle_size,20,20);
 		glPopMatrix();
 
-	}
+	}*/
 
 
 
