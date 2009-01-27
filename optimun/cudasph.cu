@@ -25,8 +25,6 @@
 #include <cutil_gl_error.h>
 #include <cuda_gl_interop.h>
 #include <particle.h>
-#include <sphere.c>
-
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,13 +64,15 @@ const float collisionDamping=0.01f;
 float anim = 0.0;
 Parameters params;
 
-/////////////////////////////////////////////////////////////////////////////////
-// vbo variables
-GLuint vbo;
+//Particle position, velocity, color
+//3D position + cellid
+float4* particlePosition_h= (float4*) malloc (numberOfParticles*sizeof(float4));
+float4* particlePosition_d;
+float3* particleVelocity_h= (float3*) malloc (numberOfParticles*sizeof(float3));
+float3* particleVelocity_d;
+float3* particleColor_h= (float3*) malloc (numberOfParticles*sizeof(float3));
+float3* particleColor_d;
 
-// particle arrays
-Particle* particleArray_h = (Particle*) malloc(numberOfParticles*sizeof(Particle));
-Particle* particleArray_d;
 
 // cell arrays
 Cell* cellArray_h = (Cell*) malloc(numberOfCells*sizeof(Cell));
@@ -92,6 +92,7 @@ float translate_y = -boundary/2.0;
 // kernels
 #include <runKernel.cu>
 
+CUTBoolean initGL();
 void initializeParameters();
 void initializeParticles();
 void initializeCells();
@@ -107,11 +108,6 @@ void copyCellsFromDeviceToHost();
 // declaration, forward
 void runTest( int argc, char** argv);
 
-// GL functionality
-CUTBoolean initGL();
-void createVBO(GLuint* vbo);
-void deleteVBO(GLuint* vbo);
-
 // rendering callbacks
 void display();
 void mouse(int button, int state, int x, int y);
@@ -119,7 +115,7 @@ void keyboard( unsigned char key, int x, int y);
 void motion(int x, int y);
 
 // Cuda functionality
-void runCuda(GLuint vbo);
+void runCuda();
 
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
@@ -175,29 +171,28 @@ void initializeCells()
 	}
 }
 
-
 void initializeParticles()
 {
 	for(unsigned int i = 0; i < numberOfParticles; i++)
 	{
-		particleArray_h[i].position.x = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)boundary);
-		particleArray_h[i].position.y = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)boundary);
-		particleArray_h[i].position.z = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)boundary);
+		particlePosition_h[i].x = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)boundary);
+		particlePosition_h[i].y = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)boundary);
+		particlePosition_h[i].z = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)boundary);
 
-		particleArray_h[i].color.x = (rand() / ((unsigned)RAND_MAX + 1.0));
-		particleArray_h[i].color.y = (rand() / ((unsigned)RAND_MAX + 1.0));
-		particleArray_h[i].color.z = (rand() / ((unsigned)RAND_MAX + 1.0));
+		particleColor_h[i].x = (rand() / ((unsigned)RAND_MAX + 1.0));
+		particleColor_h[i].y = (rand() / ((unsigned)RAND_MAX + 1.0));
+		particleColor_h[i].z = (rand() / ((unsigned)RAND_MAX + 1.0));
 
-		particleArray_h[i].velocity.x = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
-		particleArray_h[i].velocity.y = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
-		particleArray_h[i].velocity.z = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
+		particleVelocity_h[i].x = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
+		particleVelocity_h[i].y = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
+		particleVelocity_h[i].z = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(maxVelocity - minVelocity) + (float)minVelocity);
 
-		int cell_x= (int) floor(particleArray_h[i].position.x/ cell_size);
-		int cell_y= (int) floor(particleArray_h[i].position.y/ cell_size);
-		int cell_z= (int) floor(particleArray_h[i].position.z/ cell_size);
+		int cell_x= (int) floor(particlePosition_h[i].x/ cell_size);
+		int cell_y= (int) floor(particlePosition_h[i].y/ cell_size);
+		int cell_z= (int) floor(particlePosition_h[i].z/ cell_size);
 
 		int cellidx=((int)(((int)cell_x*numberOfCellsPerDim)+cell_y)*numberOfCellsPerDim) + cell_z;
-		particleArray_h[i].cellidx= cellidx;
+		particlePosition_h[i].w= (float)cellidx;
 
 		if(cellArray_h[cellidx].counter< maxParticlesPerCell)
 		{
@@ -210,17 +205,32 @@ void initializeParticles()
 
 void copyParticlesFromHostToDevice()
 {
-	int size = numberOfParticles*sizeof(Particle);
+	int sizePosition = numberOfParticles*sizeof(float4);
 
-	cudaMalloc((void**)&particleArray_d, size);
+	cudaMalloc((void**)&particlePosition_d, sizePosition);
+	cudaMemcpy(particlePosition_d, particlePosition_h, sizePosition, cudaMemcpyHostToDevice);
 
-	cudaMemcpy(particleArray_d, particleArray_h, size, cudaMemcpyHostToDevice);
+	int sizeVelocity = numberOfParticles*sizeof(float3);
+	cudaMalloc((void**)&particleVelocity_d, sizeVelocity);
+	cudaMemcpy(particleVelocity_d, particleVelocity_h, sizeVelocity, cudaMemcpyHostToDevice);
+
+	int sizeColor = numberOfParticles*sizeof(float3);
+	cudaMalloc((void**)&particleColor_d, sizeColor);
+	cudaMemcpy(particleColor_d, particleColor_h, sizeColor, cudaMemcpyHostToDevice);
 }
 
 void copyParticlesFromDeviceToHost()
 {
-	int size = numberOfParticles*sizeof(Particle);
-	cudaMemcpy(particleArray_h, particleArray_d, size,cudaMemcpyDeviceToHost);
+	int sizePosition = numberOfParticles*sizeof(float4);
+	cudaMemcpy(particlePosition_h, particlePosition_d, sizePosition,cudaMemcpyDeviceToHost);
+
+	int sizeVelocity = numberOfParticles*sizeof(float3);
+	cudaMemcpy(particleVelocity_h, particleVelocity_d, sizeVelocity,cudaMemcpyDeviceToHost);
+
+	int sizeColor = numberOfParticles*sizeof(float3);
+	cudaMemcpy(particleColor_h, particleColor_d, sizeColor,cudaMemcpyDeviceToHost);
+
+
 }
 
 void copyCellsFromHostToDevice()
@@ -268,15 +278,12 @@ void runTest( int argc, char** argv)
     initializeCells();
     initializeParticles();
 
-    // create VBO
-	//createVBO(&vbo);
-
     // run the cuda part
     copyParticlesFromHostToDevice();
     copyCellsFromHostToDevice();
 
     cutCreateTimer(&timer);
-    runCuda(vbo);
+    runCuda();
     // start rendering mainloop
     glutMainLoop();
 }
@@ -284,25 +291,21 @@ void runTest( int argc, char** argv)
 ////////////////////////////////////////////////////////////////////////////////
 //! Run the Cuda part of the computation
 ////////////////////////////////////////////////////////////////////////////////
-void runCuda(GLuint vbo)
+void runCuda()
 {
-	// map OpenGL buffer object for writing from CUDA
-	float4 *dptr;
-	//cudaGLMapBufferObject( (void**)&dptr, vbo);
 
     // execute the kernel
     dim3 block(numberOfParticlesPerBlock, 1, 1);
     dim3 grid(numberOfParticles / block.x, 1, 1);
 
     cutStartTimer(timer);
-    runKernel<<< grid, block>>>(dptr,params, particleArray_d,cellArray_d, deltaTime);
+    runKernel<<< grid, block>>>(params, particlePosition_d, particleVelocity_d, particleColor_d,cellArray_d, deltaTime);
     copyParticlesFromDeviceToHost();
     cutStopTimer(timer);
 	float milliseconds = cutGetTimerValue(timer);
 	iterations=iterations+1;
 	printf("%d particles, iterations %d , total time %0f ms\n", numberOfParticles,iterations, milliseconds/iterations);
-    // unmap buffer object
-	//cudaGLUnmapBufferObject(vbo);
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -341,49 +344,13 @@ CUTBoolean initGL()
 
     return CUTTrue;
 }
-
-
-////////////////////////////////////////////////////////////////////////////////
-//! Create VBO
-////////////////////////////////////////////////////////////////////////////////
-void createVBO(GLuint* vbo)
-{
-    // create buffer object
-    glGenBuffers( 1, vbo);
-    glBindBuffer( GL_ARRAY_BUFFER, *vbo);
-
-    // initialize buffer object
-    unsigned int size = numberOfParticles * SPHERE_VERTICES_SIZE * 4 * sizeof(float);
-    glBufferData( GL_ARRAY_BUFFER, size, 0, GL_DYNAMIC_DRAW);
-
-    glBindBuffer( GL_ARRAY_BUFFER, 0);
-
-    // register buffer object with CUDA
-    cudaGLRegisterBufferObject(*vbo);
-    //CUT_CHECK_ERROR_GL();
-}
-
-
-////////////////////////////////////////////////////////////////////////////////
-//! Delete VBO
-////////////////////////////////////////////////////////////////////////////////
-void deleteVBO( GLuint* vbo)
-{
-    glBindBuffer( 1, *vbo);
-    glDeleteBuffers( 1, vbo);
-
-    cudaGLUnregisterBufferObject(*vbo);
-
-    *vbo = 0;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //! Display callback
 ////////////////////////////////////////////////////////////////////////////////
 void display()
 {
 
-    runCuda(vbo);
+    runCuda();
 
     glClear(GL_COLOR_BUFFER_BIT);
     glEnable(GL_LIGHTING);
@@ -448,8 +415,6 @@ void display()
 	glEnd();
 	glPopMatrix();
 
-	//glDepthMask(GL_TRUE);
-
 	//Draw the wired cube
 	glPushMatrix();
 	glColor3f(1.0, 1.0, 1.0);
@@ -457,35 +422,17 @@ void display()
 	glutWireCube(boundary);
 	glPopMatrix();
 
-    /*//Render from the vbo
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glVertexPointer(4, GL_FLOAT, 0, 0);
-
-	glEnableClientState(GL_VERTEX_ARRAY);
-	glColor3f(1.0, 0.0, 0.0);
-	glDrawArrays(GL_SPHERE, 0, numberOfParticles);
-	glDisableClientState(GL_VERTEX_ARRAY);
-
-	glutSwapBuffers();
-	glutPostRedisplay();*/
-
-
     // Draw the particles
-
 
 	for(int i=0; i<numberOfParticles; i++)
 	{
 		glPushMatrix();
-		glColor3f(particleArray_h[i].color.x,particleArray_h[i].color.y,particleArray_h[i].color.z);
-		glTranslatef(particleArray_h[i].position.x,particleArray_h[i].position.y,particleArray_h[i].position.z );
+		glColor3f(particleColor_h[i].x,particleColor_h[i].y,particleColor_h[i].z);
+		glTranslatef(particlePosition_h[i].x,particlePosition_h[i].y,particlePosition_h[i].z );
 		glutSolidSphere(particle_size,20,20);
 		glPopMatrix();
 
 	}
-
-
-
-	//glDisable ( GL_LIGHTING ) ;
 
     glutSwapBuffers();
     glutPostRedisplay();

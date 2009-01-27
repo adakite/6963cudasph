@@ -45,4 +45,5 @@ USEGLUT		:= 1
 ################################################################################
 # Rules and targets#
 #emu=1
+CUDA_PROFILE=1
 include ../../common/common.mk

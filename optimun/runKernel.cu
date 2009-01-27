@@ -1,13 +1,13 @@
 #include "cutil_math.h"
 
-__device__ float3 evaluateCollision(Particle one,Particle two, Parameters params)
+__device__ float3 evaluateCollision(float4 particleOnePosition, float3 particleOneVelocity, float4 particleTwoPosition, float3 particleTwoVelocity, Parameters params)
 {
 
 	// calculate relative position
 	float3 relPos;
-	relPos.x = two.position.x - one.position.x;
-	relPos.y = two.position.y - one.position.y;
-	relPos.z = two.position.z - one.position.z;
+	relPos.x = particleTwoPosition.x - particleOnePosition.x;
+	relPos.y = particleTwoPosition.y - particleOnePosition.y;
+	relPos.z = particleTwoPosition.z - particleOnePosition.z;
 
 	float dist = length(relPos);
 	float collideDist = params.particleRadious + params.particleRadious;
@@ -17,9 +17,9 @@ __device__ float3 evaluateCollision(Particle one,Particle two, Parameters params
 
 	// relative velocity
 	float3 relVel;
-	relVel.x = two.velocity.x - one.velocity.x;
-	relVel.y = two.velocity.y - one.velocity.y;
-	relVel.z = two.velocity.z - one.velocity.z;
+	relVel.x = particleTwoVelocity.x - particleOneVelocity.x;
+	relVel.y = particleTwoVelocity.y - particleOneVelocity.y;
+	relVel.z = particleTwoVelocity.z - particleOneVelocity.z;
 
 	float3 tanVel = relVel - (dot(relVel, norm) * norm);
 
@@ -45,11 +45,12 @@ __device__ float3 evaluateCollision(Particle one,Particle two, Parameters params
 	return force;
 }
 
-__device__ float3 collisionsInCell(int id, Cell nCell, Parameters params, Particle* particleArray)
+__device__ float3 collisionsInCell(int id, Cell nCell, Parameters params, float4* particlePosition, float3* particleVelocity)
 {
 	float3 force=make_float3(0.0f);
 
-	Particle one= particleArray[id];
+	float4 particleOnePosition=particlePosition[id];
+	float3 particleOneVelocity= particleVelocity[id];
 
 	//Iterate over particles in this cell
 
@@ -61,18 +62,20 @@ __device__ float3 collisionsInCell(int id, Cell nCell, Parameters params, Partic
 		//If neighbor exist and not collide with itself
 		if(neighboridx!= -1 && neighboridx!= id)
 		{
-			Particle two= particleArray[neighboridx];
-			force+= evaluateCollision(one, two, params);
+			float4 particleTwoPosition= particlePosition[neighboridx];
+			float3 particleTwoVelocity= particleVelocity[neighboridx];
+
+			force+= evaluateCollision(particleOnePosition,particleOneVelocity, particleTwoPosition, particleTwoVelocity, params);
 		}
 	}
 
 	return force;
 }
-__device__ void computeInteractions(int id,Parameters params, Particle* particleArray, Cell* cellArray)
+__device__ void computeInteractions(int id,Parameters params, float4* particlePosition, float3* particleVelocity, Cell* cellArray)
 {
 
 	// Get cell index of this particle
-	int cellidx=particleArray[id].cellidx;
+	int cellidx=particlePosition[id].w;
 
 	//Iterate over neighbor cells
 	float3 force = make_float3(0.0f);
@@ -98,7 +101,7 @@ __device__ void computeInteractions(int id,Parameters params, Particle* particle
 					if(nCell.counter>0)
 					{
 						//printf(" Analyzed: particle id {%d}, neighbor coor {%d}{%d}{%d} \n", id, nCellx, nCelly, nCellz);
-						force+=collisionsInCell(id,nCell, params, particleArray);
+						force+=collisionsInCell(id,nCell, params, particlePosition, particleVelocity);
 					}
 				}
 			}
@@ -113,60 +116,59 @@ __device__ void computeInteractions(int id,Parameters params, Particle* particle
 	float R_two=  (1- params.globalDamping * (deltaTime/2));
 	float R_one= (1+ params.globalDamping * (deltaTime/2));
 
-	particleArray[id].velocity= particleArray[id].velocity * (R_two/R_one)  + (deltaTime/(R_one*params.mass)) * (params.gravity + force);
+	particleVelocity[id]= particleVelocity[id] * (R_two/R_one)  + (deltaTime/(R_one*params.mass)) * (params.gravity + force);
 	__syncthreads();
 }
 
-__device__ void updatePosition(int id, float4* spheres,Parameters params, Particle* particleArray,Cell* cellArray,float deltaTime )
+__device__ void updatePosition(int id,Parameters params, float4* particlePosition, float3* particleVelocity,Cell* cellArray,float deltaTime )
 {
 
-	cellArray[particleArray[id].cellidx].counter=0;
+	cellArray[(int)particlePosition[id].w].counter=0;
 
 
 	 // Update particle position
-	float x = particleArray[id].position.x + particleArray[id].velocity.x*deltaTime;
-	float y = particleArray[id].position.y + particleArray[id].velocity.y*deltaTime;
-	float z = particleArray[id].position.z + particleArray[id].velocity.z*deltaTime;
+	float x = particlePosition[id].x + particleVelocity[id].x*deltaTime;
+	float y = particlePosition[id].y + particleVelocity[id].y*deltaTime;
+	float z = particlePosition[id].z + particleVelocity[id].z*deltaTime;
 
 	// Boundary check
 	if(x- params.particleRadious < 0.0)
 	{
 		x = 2* params.particleRadious - x;
-		particleArray[id].velocity.x = -particleArray[id].velocity.x*params.boundaryDamping;
+		particleVelocity[id].x = -particleVelocity[id].x*params.boundaryDamping;
 	}
 	else if(x + params.particleRadious > params.boundary)
 	{
 		x = params.boundary - (x +2*params.particleRadious - params.boundary);
-		particleArray[id].velocity.x = -particleArray[id].velocity.x*params.boundaryDamping;
+		particleVelocity[id].x = -particleVelocity[id].x*params.boundaryDamping;
 	}
 
 	if(y- params.particleRadious  < 0.0)
 	{
 		y = 2* params.particleRadious-y;
-		particleArray[id].velocity.y = -particleArray[id].velocity.y*params.boundaryDamping;
+		particleVelocity[id].y = -particleVelocity[id].y*params.boundaryDamping;
 	}
 	else if(y + params.particleRadious> params.boundary)
 	{
 		y = params.boundary - (y+2*params.particleRadious - params.boundary);
-		particleArray[id].velocity.y = -particleArray[id].velocity.y*params.boundaryDamping;
+		particleVelocity[id].y = -particleVelocity[id].y*params.boundaryDamping;
 	}
 
 	if(z- params.particleRadious < 0.0)
 	{
 		z = 2* params.particleRadious-z;
-		particleArray[id].velocity.z = -particleArray[id].velocity.z*params.boundaryDamping;
+		particleVelocity[id].z = -particleVelocity[id].z*params.boundaryDamping;
 	}
 	else if(z+params.particleRadious > params.boundary)
 	{
 		z = params.boundary - (z+2*params.particleRadious - params.boundary);
-		particleArray[id].velocity.z = -particleArray[id].velocity.z*params.boundaryDamping;
+		particleVelocity[id].z = -particleVelocity[id].z*params.boundaryDamping;
 	}
 
-	//makeSphere(spheres, id, x , y, z , params.particleRadious);
 
-	particleArray[id].position.x = x;
-	particleArray[id].position.y = y;
-	particleArray[id].position.z = z;
+	particlePosition[id].x = x;
+	particlePosition[id].y = y;
+	particlePosition[id].z = z;
 
 	//Update cell information
 	int cell_x= (int) floor(x/ params.cellSize);
@@ -174,7 +176,7 @@ __device__ void updatePosition(int id, float4* spheres,Parameters params, Partic
 	int cell_z= (int) floor(z/ params.cellSize);
 
 	int cellidx= ((int)(((int)cell_x*params.cellsPerDim)+cell_y)*params.cellsPerDim) + cell_z;
-	particleArray[id].cellidx= cellidx;
+	particlePosition[id].w= cellidx;
 	cellArray[cellidx].counter=0;
 
 }
@@ -182,35 +184,40 @@ __device__ void updatePosition(int id, float4* spheres,Parameters params, Partic
 
 
 
-__device__ void updateCells (int id,Parameters params, Particle* particleArray, Cell* cellArray)
+__device__ void updateCells (int id,Parameters params, float4* particlePosition, Cell* cellArray)
 {
-	int cellidx=particleArray[id].cellidx;
+
 
 	#if defined CUDA_NO_SM_11_ATOMIC_INTRINSICS
-		int counter = 0;
 
-		for(int i=0; i< params.maxParticles; i++)
+
+	int cellidx=(int) particlePosition[id].w;
+	int counter = 0;
+
+	for(int i=0; i< params.maxParticles; i++)
+	{
+		if (cellidx== particlePosition[i].w)
 		{
-			if (cellidx== particleArray[i].cellidx)
+			if(i==id)
 			{
-				if(i==id)
-				{
-					cellArray[cellidx].particleidxs[counter]=id;
+				cellArray[cellidx].particleidxs[counter]=id;
 
-					if(counter >= cellArray[cellidx].counter && counter< params.maxParticlesPerCell)
-					{
-						cellArray[cellidx].counter=counter+1;
-					}
-				}
-				counter=counter+1;
-				if(counter >= params.maxParticlesPerCell)
+				if(counter >= cellArray[cellidx].counter && counter< params.maxParticlesPerCell)
 				{
-					break;
+					cellArray[cellidx].counter=counter+1;
 				}
 			}
+			counter=counter+1;
+			if(counter >= params.maxParticlesPerCell)
+			{
+				break;
+			}
 		}
+	}
+
 
 	#else
+		int cellidx=particlePosition[id].w;
 		int counter = atomicAdd(&cellArray[cellidx].counter, 1);
 		counter = min(counter, params.maxParticlesPerCell-1);
 		cellArray[cellidx].particleidxs[counter]=id;
@@ -221,18 +228,18 @@ __device__ void updateCells (int id,Parameters params, Particle* particleArray, 
 }
 
 
-__global__ void runKernel(float4* spheres, Parameters params, Particle* particleArray, Cell* cellArray, float deltaTime)
+__global__ void runKernel(Parameters params, float4* particlePosition, float3* particleVelocity, float3* particleColor, Cell* cellArray, float deltaTime)
 {
 	// Get id for current particle
    unsigned int id = blockIdx.x* blockDim.x + threadIdx.x;
 
-   computeInteractions(id,params,particleArray, cellArray);
+   computeInteractions(id,params,particlePosition, particleVelocity, cellArray);
    __syncthreads();
 
-   updatePosition(id,spheres, params, particleArray, cellArray,deltaTime);
+   updatePosition(id,params, particlePosition, particleVelocity, cellArray,deltaTime);
    __syncthreads();
 
-   updateCells (id, params, particleArray, cellArray);
+   updateCells (id, params, particlePosition, cellArray);
    __syncthreads();
 
 }
