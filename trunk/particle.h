@@ -1,41 +1,18 @@
-
-//Particle Struct definition
+// Type Definitions
+// Particle struct definition
 typedef struct
 {
 	float3 position;
 	float3 velocity;
-	float3 color;
-	int cellidx;
-
+	//float3 color;
+	float3 collisionForce;
+	unsigned int id;
 } Particle;
 
-//Cell Struct definition
+// Particle position+force struct definition
 typedef struct
 {
-	int3 coordinates;
-	int counter;
-	int particleidxs[4];
-} Cell;
-
-//Parameters struct definition
-typedef struct
-{
-	int maxParticlesPerCell;
-	int maxParticles;
-	int cellsPerDim;
-	int boundary;
-	float mass;
-	float cellSize;
-	float particleRadious;
-	float spring;
-	float globalDamping;
-	float shear;
-	float attraction;
-	float boundaryDamping;
-	float collisionDamping;
-	float3 gravity;
-
-} Parameters;
-
-
-
+	float3 position;
+	float3 collisionForce;
+	unsigned int id;
+} ParticlePositionAndCollisionForce;

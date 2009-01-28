@@ -22,6 +22,9 @@
 <builder buildPath="${workspace_loc:/6963SPHProject}" id="cdt.managedbuild.target.gnu.builder.macosx.exe.release.965027614" incrementalBuildTarget="" keepEnvironmentInBuildfile="false" managedBuildOn="false" name="Gnu Make Builder" superClass="cdt.managedbuild.target.gnu.builder.macosx.exe.release"/>
 <tool id="cdt.managedbuild.tool.macosx.c.linker.macosx.exe.release.234337732" name="MacOS X C Linker" superClass="cdt.managedbuild.tool.macosx.c.linker.macosx.exe.release"/>
 <tool id="cdt.managedbuild.tool.macosx.cpp.linker.macosx.exe.release.510618255" name="MacOS X C++ Linker" superClass="cdt.managedbuild.tool.macosx.cpp.linker.macosx.exe.release">
+<option id="macosx.cpp.link.option.paths.1575362861" superClass="macosx.cpp.link.option.paths" valueType="libPaths">
+<listOptionValue builtIn="false" value="../cuda"/>
+</option>
 <inputType id="cdt.managedbuild.tool.macosx.cpp.linker.input.1880452077" superClass="cdt.managedbuild.tool.macosx.cpp.linker.input">
 <additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
 <additionalInput kind="additionalinput" paths="$(LIBS)"/>
