@@ -1,5 +1,5 @@
 // Parameter Definitions
-#define NUMBER_OF_PARTICLES 10
+#define NUMBER_OF_PARTICLES 2
 #define MIN_VELOCITY 10.0
 #define MAX_VELOCITY -10.0
 #define PARTICLE_MASS 1.0

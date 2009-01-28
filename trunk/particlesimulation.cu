@@ -582,6 +582,7 @@ void runCuda()
 	#ifdef THREAD_PER_CELL_COLLISIONS
 		cellKernel<<< cellGrid, cellBlock>>>(particleArray_d, cellArray_d, deltaTime);
 	#endif
+
 	#ifndef NO_DISPLAY
 		#ifdef USE_VBO
 			particleKernel<<< particleGrid, particleBlock>>>(dptr, particleArray_d, cellArray_d, deltaTime);
