@@ -114,7 +114,7 @@ __global__ void cellKernel(Particle* particleArray, Cell* cellArray, float delta
 
 	sharedNumberOfParticlesInCell[cellIdInBlock.x][cellIdInBlock.y][cellIdInBlock.z] = numberOfParticlesInThisCell;
 
-	syncthreads();
+	__syncthreads();
 
 	// Compute forces
 	if(cellIdInBlock.x > 0 && cellIdInBlock.y > 0 && cellIdInBlock.z > 0 && cellIdInBlock.x < (CELL_KERNEL_BLOCK_WIDTH - 1) && cellIdInBlock.y < (CELL_KERNEL_BLOCK_HEIGHT - 1) && cellIdInBlock.y < (CELL_KERNEL_BLOCK_DEPTH - 1))
@@ -142,5 +142,6 @@ __global__ void cellKernel(Particle* particleArray, Cell* cellArray, float delta
 		}
 	}
 
-	cellArray[(((cellId.x*CELLS_IN_X)+cellId.y)*CELLS_IN_Y) + cellId.z].numberOfParticles = 0;
+	Cell thisCell = cellArray[((cellId.x * CELLS_IN_X) + cellId.y) * CELLS_IN_Y + cellId.z];
+	thisCell.numberOfParticles = 0;
 }
