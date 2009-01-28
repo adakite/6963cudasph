@@ -603,8 +603,8 @@ void runCuda()
 			}
 		#endif
 	#else
-		copyParticlesFromDeviceToHost();
-		printf("Particle 0    x:%0f y:%0f z:%0f \n", particleArray_h[0].position.x, particleArray_h[0].position.y, particleArray_h[0].position.z);
+		//copyParticlesFromDeviceToHost();
+		//printf("Particle 0    x:%0f y:%0f z:%0f \n", particleArray_h[0].position.x, particleArray_h[0].position.y, particleArray_h[0].position.z);
 	#endif
 
 	// Stop CUDA timer
