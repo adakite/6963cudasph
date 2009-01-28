@@ -142,5 +142,5 @@ __global__ void cellKernel(Particle* particleArray, Cell* cellArray, float delta
 		}
 	}
 
-	//cellArray[(((cellId.x*CELLS_IN_X)+cellId.y)*CELLS_IN_Y) + cellId.z].numberOfParticles = 0;
+	cellArray[(((cellId.x*CELLS_IN_X)+cellId.y)*CELLS_IN_Y) + cellId.z].numberOfParticles = 0;
 }

@@ -147,8 +147,11 @@ __device__ void updatePositions(unsigned int id, Particle* particleArray, Cell* 
 	particleArray[id].position.y = y;
 	particleArray[id].position.z = z;
 
-	//Update cell information
-	//cellArray[getCellId(particleArray[id])].counter=0;
+	#ifndef THREAD_PER_CELL_COLLISIONS
+		//Update cell information
+		cellArray[getCellId(&particleArray[id])].numberOfParticles=0;
+		__syncthreads();
+	#endif
 
 }
 
@@ -224,5 +227,4 @@ __device__ void updateCells(int id, Particle* particleArray, Cell* cellArray)
 			#endif
 		#endif
 	}
-	__syncthreads();
 }
