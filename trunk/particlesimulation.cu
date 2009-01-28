@@ -539,7 +539,7 @@ void mouse(int button, int state, int x, int y)
 // Motion
 void motion(int x, int y)
 {
-    float dx, dy;
+	float dx, dy;
     dx = x - mouse_old_x;
     dy = y - mouse_old_y;
 
