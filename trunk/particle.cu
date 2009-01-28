@@ -189,8 +189,12 @@ __device__ void updateCells(int id, Particle* particleArray, Cell* cellArray)
 
 
 // Kernel Function
-#ifdef USE_VBO
-	__global__ void particleKernel(float4* spheres, Particle* particleArray, Cell* cellArray, float deltaTime)
+#ifndef NO_DISPLAY
+	#ifdef USE_VBO
+		__global__ void particleKernel(float4* spheres, Particle* particleArray, Cell* cellArray, float deltaTime)
+	#else
+		__global__ void particleKernel(Particle* particleArray, Cell* cellArray, float deltaTime)
+	#endif
 #else
 	__global__ void particleKernel(Particle* particleArray, Cell* cellArray, float deltaTime)
 #endif
@@ -210,8 +214,10 @@ __device__ void updateCells(int id, Particle* particleArray, Cell* cellArray)
 
 		updateCells(id, particleArray, cellArray);
 
-		#ifdef USE_VBO
-			makeSphere(spheres, id, particleArray[id].position.x, particleArray[id].position.y, particleArray[id].position.z, PARTICLE_RADIUS);
+		#ifndef NO_DISPLAY
+			#ifdef USE_VBO
+				makeSphere(spheres, id, particleArray[id].position.x, particleArray[id].position.y, particleArray[id].position.z, PARTICLE_RADIUS);
+			#endif
 		#endif
 	}
 	__syncthreads();
