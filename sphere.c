@@ -5,7 +5,10 @@
 
 __device__ void makeSphere(float4* sphereVertices, unsigned int offsetIntoArray, float x, float y, float z, float r)
 {
-	unsigned int offset = offsetIntoArray * SPHERE_VERTICES_SIZE;
+	unsigned int offset = offsetIntoArray;
+	sphereVertices[offset] = make_float4(x, y, z, 1.0f);
+
+	/*unsigned int offset = offsetIntoArray * SPHERE_VERTICES_SIZE;
 
 	// First triangle
 	sphereVertices[offset + 0] = make_float4(x - r * cos(PI / 6) * cos(PI / 6), y - r * sin(PI / 6) * cos(PI / 6), z - r * sin(PI / 6) * sin(PI / 6), 1.0f);
@@ -26,4 +29,5 @@ __device__ void makeSphere(float4* sphereVertices, unsigned int offsetIntoArray,
 	sphereVertices[offset + 9] = make_float4(x - r * cos(PI / 6) * cos(PI / 6), y - r * sin(PI / 6) * cos(PI / 6), z - r * sin(PI / 6) * sin(PI / 6), 1.0f);
 	sphereVertices[offset + 10] = make_float4(x + r * cos(PI / 6) * cos(PI / 6), y - r * sin(PI / 6) * cos(PI / 6), z - r * sin(PI / 6) * sin(PI / 6), 1.0f);
 	sphereVertices[offset + 11] = make_float4(x, y - r * sin(PI / 6) * cos(PI / 6), z + r * sin(PI / 6) * sin(PI / 6), 1.0f);
+	*/
 }
