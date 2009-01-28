@@ -182,6 +182,10 @@ __device__ void updateCells(int id, Particle* particleArray, Cell* cellArray)
 
 	#else
 		int counter = atomicAdd(&cellArray[cellidx].numberOfParticles, 1);
+		if(counter >= MAX_PARTICLES_PER_CELL)
+		{
+			cellArray[cellidx].numberOfParticles = MAX_PARTICLES_PER_CELL;
+		}
 		counter = min(counter, MAX_PARTICLES_PER_CELL-1);
 		cellArray[cellidx].particleidxs[counter]=id;
 	#endif
@@ -222,26 +226,3 @@ __device__ void updateCells(int id, Particle* particleArray, Cell* cellArray)
 	}
 	__syncthreads();
 }
-
-
-/*
-//Parameters struct definition
-typedef struct
-{
-	int maxParticlesPerCell;
-	int maxParticles;
-	int cellsPerDim;
-	int boundary;
-	float mass;
-	float cellSize;
-	float particleRadious;
-	float spring;
-	float damping;
-	float shear;
-	float attraction;
-	float gravity;
-	float boundaryDamping;
-} Parameters;
-*/
-
-
