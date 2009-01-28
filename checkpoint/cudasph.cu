@@ -27,6 +27,8 @@
 #include <particle.h>
 #include <sphere.c>
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // constants
 const unsigned int window_width = 1024;
@@ -51,7 +53,7 @@ unsigned int timer;
 unsigned int iterations;
 
 const float mass=1.0f;
-const float spring=1.0f;
+const float spring=2.0f;
 const float globalDamping=1.0f;
 const float shear=0.1f;
 const float attraction= 0.01f;
@@ -68,6 +70,8 @@ Parameters params;
 /////////////////////////////////////////////////////////////////////////////////
 // vbo variables
 GLuint vbo;
+GLuint cbo;
+GLuint nbo;
 
 
 
@@ -110,8 +114,9 @@ void runTest( int argc, char** argv);
 
 // GL functionality
 CUTBoolean initGL();
-void createVBO(GLuint* vbo);
-void deleteVBO(GLuint* vbo);
+void createVBO(GLuint* vbo, GLuint* cbo, GLuint* nbo);
+void deleteVBO(GLuint* vbo, GLuint* cbo, GLuint* nbo);
+
 
 
 // rendering callbacks
@@ -121,7 +126,7 @@ void keyboard( unsigned char key, int x, int y);
 void motion(int x, int y);
 
 // Cuda functionality
-void runCuda(GLuint vbo);
+void runCuda(GLuint vbo, GLuint cbo, GLuint nbo);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
@@ -271,14 +276,14 @@ void runTest( int argc, char** argv)
     initializeParticles();
 
     // create VBO
-	createVBO(&vbo);
+	createVBO(&vbo, &cbo,&nbo);
 
     // run the cuda part
     copyParticlesFromHostToDevice();
     copyCellsFromHostToDevice();
 
     cutCreateTimer(&timer);
-    runCuda(vbo);
+    runCuda(vbo, cbo,nbo);
     // start rendering mainloop
     glutMainLoop();
 }
@@ -287,18 +292,22 @@ void runTest( int argc, char** argv)
 ////////////////////////////////////////////////////////////////////////////////
 //! Run the Cuda part of the computation
 ////////////////////////////////////////////////////////////////////////////////
-void runCuda(GLuint vbo)
+void runCuda(GLuint vbo, GLuint cbo, GLuint nbo)
 {
 	// map OpenGL buffer object for writing from CUDA
 	float4 *dptr;
 	cudaGLMapBufferObject( (void**)&dptr, vbo);
+	float3 *cptr;
+	cudaGLMapBufferObject( (void**)&cptr, cbo);
+	float3 *nptr;
+	cudaGLMapBufferObject( (void**)&nptr, nbo);
 
     // execute the kernel
     dim3 block(numberOfParticlesPerBlock, 1, 1);
     dim3 grid(numberOfParticles / block.x, 1, 1);
 
     cutStartTimer(timer);
-    runKernel<<< grid, block>>>(dptr, params, particleArray_d,cellArray_d, deltaTime);
+    runKernel<<< grid, block>>>(dptr,cptr,nptr, params, particleArray_d,cellArray_d, deltaTime);
     //copyParticlesFromDeviceToHost();
     cutStopTimer(timer);
 	float milliseconds = cutGetTimerValue(timer);
@@ -306,6 +315,8 @@ void runCuda(GLuint vbo)
 	printf("%d particles, iterations %d , total time %0f ms\n", numberOfParticles,iterations, milliseconds/iterations);
     // unmap buffer object
 	cudaGLUnmapBufferObject(vbo);
+	cudaGLUnmapBufferObject(cbo);
+	cudaGLUnmapBufferObject(nbo);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -349,7 +360,7 @@ CUTBoolean initGL()
 ////////////////////////////////////////////////////////////////////////////////
 //! Create VBO
 ////////////////////////////////////////////////////////////////////////////////
-void createVBO(GLuint* vbo)
+void createVBO(GLuint* vbo, GLuint* cbo,GLuint* nbo)
 {
     // create buffer object
     glGenBuffers( 1, vbo);
@@ -363,6 +374,32 @@ void createVBO(GLuint* vbo)
 
     // register buffer object with CUDA
     cudaGLRegisterBufferObject(*vbo);
+
+    // create buffer object
+	glGenBuffers( 1, cbo);
+	glBindBuffer( GL_ARRAY_BUFFER, *cbo);
+
+	// initialize buffer object
+	unsigned int sizec = numberOfParticles * SPHERE_VERTICES_SIZE * 3 * sizeof(float);
+	glBufferData( GL_ARRAY_BUFFER, sizec, 0, GL_DYNAMIC_DRAW);
+
+	glBindBuffer( GL_ARRAY_BUFFER, 0);
+
+	// register buffer object with CUDA
+	cudaGLRegisterBufferObject(*cbo);
+
+	// create buffer object
+	glGenBuffers( 1, nbo);
+	glBindBuffer( GL_ARRAY_BUFFER, *nbo);
+
+	// initialize buffer object
+	unsigned int sizen = numberOfParticles * SPHERE_VERTICES_SIZE * 3 * sizeof(float);
+	glBufferData( GL_ARRAY_BUFFER, sizen, 0, GL_DYNAMIC_DRAW);
+
+	glBindBuffer( GL_ARRAY_BUFFER, 0);
+
+	// register buffer object with CUDA
+	cudaGLRegisterBufferObject(*nbo);
     CUT_CHECK_ERROR_GL();
 }
 
@@ -370,7 +407,7 @@ void createVBO(GLuint* vbo)
 ////////////////////////////////////////////////////////////////////////////////
 //! Delete VBO
 ////////////////////////////////////////////////////////////////////////////////
-void deleteVBO( GLuint* vbo)
+void deleteVBO( GLuint* vbo, GLuint* cbo,GLuint* nbo)
 {
     glBindBuffer( 1, *vbo);
     glDeleteBuffers( 1, vbo);
@@ -378,12 +415,26 @@ void deleteVBO( GLuint* vbo)
     cudaGLUnregisterBufferObject(*vbo);
 
     *vbo = 0;
+
+    glBindBuffer( 1, *cbo);
+	glDeleteBuffers( 1, cbo);
+
+	cudaGLUnregisterBufferObject(*cbo);
+
+	*cbo = 0;
+
+	glBindBuffer( 1, *nbo);
+	glDeleteBuffers( 1, nbo);
+
+	cudaGLUnregisterBufferObject(*nbo);
+
+	*nbo = 0;
 }
 
 void display()
 {
 
-    runCuda(vbo);
+    runCuda(vbo,cbo,nbo);
 
     glClear(GL_COLOR_BUFFER_BIT);
     glEnable(GL_LIGHTING);
@@ -457,8 +508,16 @@ void display()
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glVertexPointer(4, GL_FLOAT, 0, 0);
 
+	glBindBuffer(GL_ARRAY_BUFFER, cbo);
+	glColorPointer(3,GL_FLOAT,0,0);
+
+	glBindBuffer(GL_ARRAY_BUFFER,nbo);
+	glNormalPointer(GL_FLOAT, 0, 0);
+
 	glEnableClientState(GL_VERTEX_ARRAY);
-	glColor3f(1.0, 0.0, 0.0);
+	glEnableClientState(GL_COLOR_ARRAY);
+	glEnableClientState (GL_NORMAL_ARRAY);
+
 	glDrawArrays(GL_TRIANGLES, 0, numberOfParticles*60);
 	glDisableClientState(GL_VERTEX_ARRAY);
 
