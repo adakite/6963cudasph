@@ -28,6 +28,9 @@
 // Macro for using thread-per-cell approach for calculating collisions
 //#define THREAD_PER_CELL_COLLISIONS
 
+// Macro for not displaying graphics
+//#define NO_DISPLAY
+
 // Constants, Display
 #define WINDOW_WIDTH 1024
 #define WINDOW_HEIGHT 1024
@@ -555,10 +558,12 @@ void motion(int x, int y)
 // Execute one time step in the simulation.
 void runCuda()
 {
-	#ifdef USE_VBO
-		// Map OpenGL buffer object for writing from CUDA
-		float4 *dptr;
-		cudaGLMapBufferObject( (void**)&dptr, vBuffer);
+	#ifndef NO_DISPLAY
+		#ifdef USE_VBO
+			// Map OpenGL buffer object for writing from CUDA
+			float4 *dptr;
+			cudaGLMapBufferObject( (void**)&dptr, vBuffer);
+		#endif
 	#endif
 
     // Prepare kernel dimensions
@@ -577,19 +582,28 @@ void runCuda()
 	#ifdef THREAD_PER_CELL_COLLISIONS
 		cellKernel<<< cellGrid, cellBlock>>>(particleArray_d, cellArray_d, deltaTime);
 	#endif
-	#ifdef USE_VBO
-		particleKernel<<< particleGrid, particleBlock>>>(dptr, particleArray_d, cellArray_d, deltaTime);
+	#ifndef NO_DISPLAY
+		#ifdef USE_VBO
+			particleKernel<<< particleGrid, particleBlock>>>(dptr, particleArray_d, cellArray_d, deltaTime);
+		#else
+			particleKernel<<< particleGrid, particleBlock>>>(particleArray_d, cellArray_d, deltaTime);
+		#endif
 	#else
 		particleKernel<<< particleGrid, particleBlock>>>(particleArray_d, cellArray_d, deltaTime);
 	#endif
 
-	#ifndef USE_VBO
-		if(requestMemCopy)
-		{
-			requestMemCopy = false;
-			copyParticlesFromDeviceToHost();
-			readyToDraw = true;
-		}
+	#ifndef NO_DISPLAY
+		#ifndef USE_VBO
+			if(requestMemCopy)
+			{
+				requestMemCopy = false;
+				copyParticlesFromDeviceToHost();
+				readyToDraw = true;
+			}
+		#endif
+	#else
+		copyParticlesFromDeviceToHost();
+		printf("Particle 0    x:%0f y:%0f z:%0f \n", particleArray_h[0].position.x, particleArray_h[0].position.y, particleArray_h[0].position.z);
 	#endif
 
 	// Stop CUDA timer
@@ -601,15 +615,21 @@ void runCuda()
 	iterations++;
 
 	// Output results
-	#ifdef SEPARATE_GL
-		printf("step %d, %d particles, time %0f ms\n", iterations, NUMBER_OF_PARTICLES, milliseconds);
+	#ifndef NO_DISPLAY
+		#ifdef SEPARATE_GL
+			printf("step %d, %d particles, time %0f ms\n", iterations, NUMBER_OF_PARTICLES, milliseconds);
+		#else
+			printf("step %d, %d particles, time %0f ms", iterations, NUMBER_OF_PARTICLES, milliseconds);
+		#endif
 	#else
-		printf("step %d, %d particles, time %0f ms", iterations, NUMBER_OF_PARTICLES, milliseconds);
+		printf("step %d, %d particles, time %0f ms\n", iterations, NUMBER_OF_PARTICLES, milliseconds);
 	#endif
 
-	#ifdef USE_VBO
-		// Unmap VBO from CUDA
-		cudaGLUnmapBufferObject(vBuffer);
+	#ifndef NO_DISPLAY
+		#ifdef USE_VBO
+			// Unmap VBO from CUDA
+			cudaGLUnmapBufferObject(vBuffer);
+		#endif
 	#endif
 }
 
@@ -619,22 +639,24 @@ void runSimulation( int argc, char** argv)
 	// Create CUDA context
 	CUT_DEVICE_INIT(argc, argv);
 
-    // Create OpenGL context
-    glutInit( &argc, argv);
-    glutInitDisplayMode( GLUT_RGBA | GLUT_DOUBLE);
-    glutInitWindowSize( WINDOW_WIDTH, WINDOW_HEIGHT);
-    glutCreateWindow( "Particle Simulation with CUDA");
+	#ifndef NO_DISPLAY
+		// Create OpenGL context
+		glutInit( &argc, argv);
+		glutInitDisplayMode( GLUT_RGBA | GLUT_DOUBLE);
+		glutInitWindowSize( WINDOW_WIDTH, WINDOW_HEIGHT);
+		glutCreateWindow( "Particle Simulation with CUDA");
 
-    // Initialize OpenGL
-    if( CUTFalse == initGL()) {
-        return;
-    }
+		// Initialize OpenGL
+		if( CUTFalse == initGL()) {
+			return;
+		}
 
-    // Register callbacks
-    glutDisplayFunc(display);
-    glutKeyboardFunc(keyboard);
-    glutMouseFunc(mouse);
-    glutMotionFunc(motion);
+		// Register callbacks
+		glutDisplayFunc(display);
+		glutKeyboardFunc(keyboard);
+		glutMouseFunc(mouse);
+		glutMotionFunc(motion);
+	#endif
 
     // Initialize simulation
     initializeCells();
@@ -644,9 +666,11 @@ void runSimulation( int argc, char** argv)
     copyParticlesFromHostToDevice();
     copyCellsFromHostToDevice();
 
-	#ifdef USE_VBO
-		// Create Vertex Buffer Object
-		createVBO(&vBuffer);
+	#ifndef NO_DISPLAY
+		#ifdef USE_VBO
+			// Create Vertex Buffer Object
+			createVBO(&vBuffer);
+		#endif
 	#endif
 
     // Initialize counter
@@ -655,20 +679,27 @@ void runSimulation( int argc, char** argv)
     // Run the simulation once
     runCuda();
 
-	#ifdef SEPARATE_GL
-		// Start OpenGL in separate thread
-		pthread_t glThread;
-		int t = 1;
-		pthread_create(&glThread, NULL, openGLLoop,(void *)t);
+	#ifndef NO_DISPLAY
+		#ifdef SEPARATE_GL
+			// Start OpenGL in separate thread
+			pthread_t glThread;
+			int t = 1;
+			pthread_create(&glThread, NULL, openGLLoop,(void *)t);
 
-		// Begin the simulation
-		while(continueRunning)
-		{
-			runCuda();
-		}
+			// Begin the simulation
+			while(continueRunning)
+			{
+				runCuda();
+			}
+		#else
+			// Start rendering mainloop
+			glutMainLoop();
+		#endif
 	#else
-		// Start rendering mainloop
-		glutMainLoop();
+			while(true)
+			{
+				runCuda();
+			}
 	#endif
 
 }
