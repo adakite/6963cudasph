@@ -42,7 +42,7 @@ const float minVelocity = -10.0f;
 const int boundary= 32.0f;
 
 
-const unsigned int numberOfParticles = 1024;
+const unsigned int numberOfParticles = 10240;
 const unsigned int numberOfParticlesPerBlock = 32;
 const unsigned int numberOfCellsPerDim=((int)floor((boundary)/cell_size));
 const unsigned int numberOfCells= numberOfCellsPerDim*numberOfCellsPerDim*numberOfCellsPerDim;
