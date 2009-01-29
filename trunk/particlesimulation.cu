@@ -15,12 +15,13 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // Constants and macros
 ////////////////////////////////////////////////////////////////////////////////
 
 // Macro for using Vertex Buffer Objects to display particles
-//#define USE_VBO
+#define USE_VBO
 
 // Macro for designation whether OpenGL should run in a separate thread
 //#define SEPARATE_GL
@@ -29,7 +30,7 @@
 #define THREAD_PER_CELL_COLLISIONS
 
 // Macro for not displaying graphics
-//#define NO_DISPLAY
+#define NO_DISPLAY
 
 // Macro for limiting the number of iterations
 //#define NUMBER_OF_ITERATIONS 500
