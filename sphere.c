@@ -1,12 +1,14 @@
 #define SPHERE_VERTICES_SIZE 60
 #define GL_SPHERE GL_TRIANGLES
 
+#define PHI ((1.0+sqrtf(5.0))/2.0)
+
 __device__ void makeSphere(float4* sphereVertices, float3* colors, float3* normals, unsigned int offsetIntoArray, float x, float y, float z, float r, float3 c)
 {
 	unsigned int offset = offsetIntoArray * SPHERE_VERTICES_SIZE;
 
-	float g= ((1+sqrtf(5))/2)*r;
-	float p= 1.0f *r;
+	float g = r * sinf(atanf(PHI));
+	float p = r * cosf(atanf(PHI));
 
 	//Blue
 	float4 vertex_zero = make_float4(0.0f+x,p+y,g+z ,1.0f);
