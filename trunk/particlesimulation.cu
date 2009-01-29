@@ -21,7 +21,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 // Macro for using Vertex Buffer Objects to display particles
-#define USE_VBO
+//#define USE_VBO
 
 // Macro for designation whether OpenGL should run in a separate thread
 //#define SEPARATE_GL
