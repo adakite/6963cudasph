@@ -36,7 +36,7 @@
 # Add source files here
 EXECUTABLE	:= cudasph
 # Cuda source files (compiled with cudacc)
-CUFILES		:= particlesimulation.cu
+CUFILES_sm_11		:= particlesimulation.cu
 
 # Additional compiler flags and LIBs to include
 USEGLLIB	:= 1
