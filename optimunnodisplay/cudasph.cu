@@ -27,6 +27,7 @@
 #include <particle.h>
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // constants
 const unsigned int window_width = 1024;
@@ -92,7 +93,6 @@ float translate_y = -boundary/2.0;
 // kernels
 #include <runKernel.cu>
 
-CUTBoolean initGL();
 void initializeParameters();
 void initializeParticles();
 void initializeCells();
@@ -108,11 +108,7 @@ void copyCellsFromDeviceToHost();
 // declaration, forward
 void runTest( int argc, char** argv);
 
-// rendering callbacks
-void display();
-void mouse(int button, int state, int x, int y);
-void keyboard( unsigned char key, int x, int y);
-void motion(int x, int y);
+
 
 // Cuda functionality
 void runCuda();
@@ -256,24 +252,6 @@ void runTest( int argc, char** argv)
 {
     CUT_DEVICE_INIT(argc, argv);
 
-    // Create GL context
-    glutInit( &argc, argv);
-    glutInitDisplayMode( GLUT_RGBA | GLUT_DOUBLE);
-    glutInitWindowSize( window_width, window_height);
-    glutCreateWindow( "Cuda Smoothed particle hydrodynamics Simulation");
-
-    // initialize GL
-    if( CUTFalse == initGL()) {
-        return;
-    }
-
-    // register callbacks
-    glutDisplayFunc( display);
-    glutKeyboardFunc( keyboard);
-    glutMouseFunc( mouse);
-    glutMotionFunc( motion);
-
-
     initializeParameters();
     initializeCells();
     initializeParticles();
@@ -283,9 +261,11 @@ void runTest( int argc, char** argv)
     copyCellsFromHostToDevice();
 
     cutCreateTimer(&timer);
-    runCuda();
-    // start rendering mainloop
-    glutMainLoop();
+    for (int i=0; i<300; i++)
+	{
+		runCuda();
+	}
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -306,203 +286,6 @@ void runCuda()
 	iterations=iterations+1;
 	printf("%d particles, iterations %d , total time %0f ms\n", numberOfParticles,iterations, milliseconds/iterations);
 
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//! Initialize GL
-////////////////////////////////////////////////////////////////////////////////
-CUTBoolean initGL()
-{
-    // initialize necessary OpenGL extensions
-    glewInit();
-    if (! glewIsSupported( "GL_VERSION_2_0 "
-        "GL_ARB_pixel_buffer_object"
-		)) {
-        fprintf( stderr, "ERROR: Support for necessary OpenGL extensions missing.");
-        fflush( stderr);
-        return CUTFalse;
-    }
-
-
-    // default initialization
-    glClearColor( 1.0, 1.0, 1.0, 1.0);
-    glDisable( GL_DEPTH_TEST);
-
-    // viewport
-    glViewport( 0, 0, window_width, window_height);
-
-    // projection
-    glMatrixMode( GL_PROJECTION);
-    glLoadIdentity();
-    //gluPerspective(60.0, (GLfloat)window_width / (GLfloat) window_height, 0.1, 10.0);
-    gluPerspective( /* field of view in degree */ 40.0,
-      /* aspect ratio */ 1.0,
-        /* Z near */ 0.5, /* Z far */ 150.0);
-
-
-    //CUT_CHECK_ERROR_GL();
-
-    return CUTTrue;
-}
-////////////////////////////////////////////////////////////////////////////////
-//! Display callback
-////////////////////////////////////////////////////////////////////////////////
-void display()
-{
-
-    runCuda();
-
-    glClear(GL_COLOR_BUFFER_BIT);
-    glEnable(GL_LIGHTING);
-    glEnable(GL_COLOR_MATERIAL);
-    glEnable(GL_LIGHT0);
-
-    GLfloat lightpos[] = {-boundary/2, -boundary/2, -boundary/2, 1.0};
-    glLightfv(GL_LIGHT0, GL_POSITION, lightpos);
-
-    // set view matrix
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    glTranslatef(translate_x, translate_y, translate_z);
-
-    glRotatef(rotate_x, 1.0, 0.0, 0.0);
-    glRotatef(rotate_y, 0.0, 1.0, 0.0);
-
-    //Draw the walls
-
-    //glDepthMask(GL_FALSE);
-
-	glPushMatrix();
-	// Draw the Back
-	glColor3f(0.7f, 0.7f, 0.7f);
-	glBegin(GL_QUADS);
-			glVertex3f(0.0f, 0.0f, 0.0f);
-			glVertex3f(0.0f, boundary, 0.0f);
-			glVertex3f( boundary, boundary, 0.0f);
-			glVertex3f( boundary, 0.0f, 0.0f);
-	glEnd();
-	// Draw the left
-	glColor3f(0.7f, 0.7f, 0.7f);
-	glBegin(GL_QUADS);
-			glVertex3f(0.0f, boundary, boundary);
-			glVertex3f(0.0f, 0.0f, boundary);
-			glVertex3f(0.0f, 0.0f, 0.0f);
-			glVertex3f(0.0f, boundary, 0.0f);
-	glEnd();
-	// Draw the right
-	glColor3f(0.7f, 0.7f, 0.7f);
-	glBegin(GL_QUADS);
-			glVertex3f(boundary, boundary, boundary);
-			glVertex3f(boundary, 0.0f, boundary);
-			glVertex3f(boundary, 0.0f, 0.0f);
-			glVertex3f(boundary, boundary, 0.0f);
-	glEnd();
-	// Draw the top
-	glColor3f(0.7f, 0.7f, 0.7f);
-	glBegin(GL_QUADS);
-			glVertex3f(boundary, boundary, boundary);
-			glVertex3f(0.0f, boundary, boundary);
-			glVertex3f(0.0f, boundary, 0.0f);
-			glVertex3f(boundary, boundary, 0.0f);
-	glEnd();
-	// Draw the bottom
-	glColor3f(0.7f, 0.7f, 0.7f);
-	glBegin(GL_QUADS);
-			glVertex3f(boundary, 0.0f, boundary);
-			glVertex3f(0.0f, 0.0f, boundary);
-			glVertex3f(0.0f, 0.0f, 0.0f);
-			glVertex3f(boundary, 0.0f, 0.0f);
-	glEnd();
-	glPopMatrix();
-
-	//Draw the wired cube
-	glPushMatrix();
-	glColor3f(1.0, 1.0, 1.0);
-	glTranslatef(boundary/2,boundary/2,boundary/2);
-	glutWireCube(boundary);
-	glPopMatrix();
-
-    // Draw the particles
-
-	for(int i=0; i<numberOfParticles; i++)
-	{
-		glPushMatrix();
-		glColor3f(particleColor_h[i].x,particleColor_h[i].y,particleColor_h[i].z);
-		glTranslatef(particlePosition_h[i].x,particlePosition_h[i].y,particlePosition_h[i].z );
-		glutSolidSphere(particle_size,20,20);
-		glPopMatrix();
-
-	}
-
-    glutSwapBuffers();
-    glutPostRedisplay();
-
-    anim += 0.01;
-}
-////////////////////////////////////////////////////////////////////////////////
-//! Keyboard events handler
-////////////////////////////////////////////////////////////////////////////////
-void keyboard( unsigned char key, int /*x*/, int /*y*/)
-{
-	 switch( key)
-	 {
-	    case( 27) :
-	        exit( 0);
-	    case 'j':
-	    	translate_z +=  1.0f;
-			break;
-		case 'J':
-			translate_z -=  1.0f;
-			break;
-		case 'k':
-			translate_x +=  1.0f;
-			break;
-		case 'K':
-			translate_x -=  1.0f;
-			break;
-		case 'l':
-			translate_y +=  1.0f;
-			break;
-		case 'L':
-			translate_y -=  1.0f;
-			break;
-
-	 }
-	     glutPostRedisplay(); // Redraw the scene
-
-
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//! Mouse event handlers
-////////////////////////////////////////////////////////////////////////////////
-void mouse(int button, int state, int x, int y)
-{
-    if (state == GLUT_DOWN) {
-        mouse_buttons |= 1<<button;
-    } else if (state == GLUT_UP) {
-        mouse_buttons = 0;
-    }
-    mouse_old_x = x;
-    mouse_old_y = y;
-    glutPostRedisplay();
-}
-
-void motion(int x, int y)
-{
-    float dx, dy;
-    dx = x - mouse_old_x;
-    dy = y - mouse_old_y;
-
-    if (mouse_buttons & 1) {
-        rotate_x += dy * 0.2;
-        rotate_y += dx * 0.2;
-    } else if (mouse_buttons & 4) {
-        translate_z += dy * 0.01;
-    }
-
-    mouse_old_x = x;
-    mouse_old_y = y;
 }
 
 
