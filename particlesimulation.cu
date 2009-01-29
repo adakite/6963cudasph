@@ -20,19 +20,19 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 // Macro for using Vertex Buffer Objects to display particles
-#define USE_VBO
+//#define USE_VBO
 
 // Macro for designation whether OpenGL should run in a separate thread
 //#define SEPARATE_GL
 
 // Macro for using thread-per-cell approach for calculating collisions
-//#define THREAD_PER_CELL_COLLISIONS
+#define THREAD_PER_CELL_COLLISIONS
 
 // Macro for not displaying graphics
 //#define NO_DISPLAY
 
 // Macro for limiting the number of iterations
-//#define NUMBER_OF_ITERATIONS 1000
+//#define NUMBER_OF_ITERATIONS 500
 
 // Constants, Display
 #define WINDOW_WIDTH 1024
