@@ -113,8 +113,9 @@ bool requestMemCopy = true;
 bool readyToDraw = false;
 
 // Timers and counters
-unsigned int timer;
 unsigned int iterations;
+unsigned int iterationTimer;
+unsigned int kernelTimer;
 unsigned int drawTimer;
 
 // Variables, Display
@@ -279,40 +280,13 @@ CUTBoolean initGL()
     return CUTTrue;
 }
 
-/*
 // Create VBO
 // Creates a Vertex Buffer Object and sets the given pointer.
 // Vertex Buffer Object is registered with CUDA.
-// If given true, Vertex Buffer Object is of size float4*NUMBER_OF_PARTICLES
-// Otherwise, Vertex Buffer Object is of size float3*NUMBER_OF_PARTICLES
-void createVBO(GLuint* vbo, bool useFloat4)
-{
-    // create buffer object
-    glGenBuffers( 1, vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, *vbo);
-
-    // initialize buffer object
-    //unsigned int size = NUMBER_OF_PARTICLES * SPHERE_VERTICES_SIZE * 4 * sizeof(float);
-    unsigned int size;
-    if(useFloat4)
-	{
-		size = NUMBER_OF_PARTICLES * sizeof(float4);
-	}
-    else
-    {
-    	size = NUMBER_OF_PARTICLES * sizeof(float3);
-    }
-    glBufferData(GL_ARRAY_BUFFER, size, 0, GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    // register buffer object with CUDA
-    cudaGLRegisterBufferObject(*vbo);
-
-    CUT_CHECK_ERROR_GL();
-}
-*/
-
-void createVBO(GLuint* vbo, GLuint* cbo,GLuint* nbo)
+// First argument is the vertex buffer.
+// Second argument is the color buffer.
+// Third argument is the normal buffer.
+void createVBO(GLuint* vbo, GLuint* cbo, GLuint* nbo)
 {
     // create buffer object
     glGenBuffers( 1, vbo);
@@ -568,7 +542,7 @@ void display()
 	#ifdef SEPARATE_GL
 		printf("draw time %0f ms\n", milliseconds);
 	#else
-		printf(", draw time %0f ms\n", milliseconds);
+		printf(", draw time %0f ms", milliseconds);
 	#endif
 
 	#ifndef USE_VBO
@@ -644,6 +618,17 @@ void motion(int x, int y)
 // Execute one time step in the simulation.
 void runCuda()
 {
+	#ifndef SEPARATE_GL
+		// Stop and start iteration timer
+		cutStopTimer(iterationTimer);
+		float iterationMilliseconds = cutGetTimerValue(iterationTimer);
+		cutDeleteTimer(iterationTimer);
+		printf(", iteration time %0f ms\n", iterationMilliseconds);
+
+		cutCreateTimer(&iterationTimer);
+	    cutStartTimer(iterationTimer);
+	#endif
+
 	#ifndef NO_DISPLAY
 		#ifdef USE_VBO
 			// Map OpenGL buffer object for writing from CUDA
@@ -664,9 +649,9 @@ void runCuda()
 	dim3 particleBlock(PARTICLES_PER_BLOCK, 1, 1);
 	dim3 particleGrid(ceil(NUMBER_OF_PARTICLES / (double)particleBlock.x), 1, 1);
 
-	// Start CUDA timer
-	cutCreateTimer(&timer);
-    cutStartTimer(timer);
+	// Start CUDA kernel timer
+	cutCreateTimer(&kernelTimer);
+    cutStartTimer(kernelTimer);
 
     // Execute kernels
 	#ifdef THREAD_PER_CELL_COLLISIONS
@@ -698,9 +683,9 @@ void runCuda()
 	#endif
 
 	// Stop CUDA timer
-    cutStopTimer(timer);
-	float milliseconds = cutGetTimerValue(timer);
-	cutDeleteTimer(timer);
+    cutStopTimer(kernelTimer);
+	float milliseconds = cutGetTimerValue(kernelTimer);
+	cutDeleteTimer(kernelTimer);
 
 	// Increment iteration counter
 	iterations++;
@@ -708,12 +693,12 @@ void runCuda()
 	// Output results
 	#ifndef NO_DISPLAY
 		#ifdef SEPARATE_GL
-			printf("step %d, %d particles, time %0f ms\n", iterations, NUMBER_OF_PARTICLES, milliseconds);
+			printf("step %d, %d particles, kernel time %0f ms\n", iterations, NUMBER_OF_PARTICLES, milliseconds);
 		#else
-			printf("step %d, %d particles, time %0f ms", iterations, NUMBER_OF_PARTICLES, milliseconds);
+			printf("step %d, %d particles, kernel time %0f ms", iterations, NUMBER_OF_PARTICLES, milliseconds);
 		#endif
 	#else
-		printf("step %d, %d particles, time %0f ms\n", iterations, NUMBER_OF_PARTICLES, milliseconds);
+		printf("step %d, %d particles, kernel time %0f ms", iterations, NUMBER_OF_PARTICLES, milliseconds);
 	#endif
 
 	#ifndef NO_DISPLAY
@@ -761,11 +746,7 @@ void runSimulation( int argc, char** argv)
 
 	#ifndef NO_DISPLAY
 		#ifdef USE_VBO
-			/*// Create Vertex Buffer Object
-			createVBO(&vBuffer, true);
-			//createVBO(&cBuffer, false);
-			createVBO(&nBuffer, false);
-			*/
+			// Create Vertex Buffer Object
 			createVBO(&vBuffer, &cBuffer, &nBuffer);
 		#endif
 	#endif
@@ -778,7 +759,9 @@ void runSimulation( int argc, char** argv)
     copyParticlesFromHostToDevice();
     copyCellsFromHostToDevice();
 
-
+	// Prepare iteration timer
+    cutCreateTimer(&iterationTimer);
+	cutStartTimer(iterationTimer);
 
     // Initialize counter
     iterations = 0;
