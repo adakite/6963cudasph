@@ -29,7 +29,7 @@
 //#define THREAD_PER_CELL_COLLISIONS
 
 // Macro for not displaying graphics
-//define NO_DISPLAY
+//#define NO_DISPLAY
 
 // Macro for limiting the number of iterations
 //#define NUMBER_OF_ITERATIONS 1000
@@ -40,16 +40,6 @@
 
 // Constants, Simulation
 const float deltaTime=0.005f;
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-// Device arrays
-////////////////////////////////////////////////////////////////////////////////
-
-// Constant Memory
-// Array for particle colors
-__constant__ float3* constantMemColorArray;
 
 
 
@@ -222,9 +212,11 @@ void initializeParticles()
 		colorArray_h[i].y = (rand() / ((unsigned)RAND_MAX + 1.0));
 		colorArray_h[i].z = (rand() / ((unsigned)RAND_MAX + 1.0));
 
-		particleArray_h[i].color.x = colorArray_h[i].x;
-		particleArray_h[i].color.y = colorArray_h[i].y;
-		particleArray_h[i].color.z = colorArray_h[i].z;
+		#ifdef USE_VBO
+			particleArray_h[i].color.x = colorArray_h[i].x;
+			particleArray_h[i].color.y = colorArray_h[i].y;
+			particleArray_h[i].color.z = colorArray_h[i].z;
+		#endif
 
 		particleArray_h[i].velocity.x = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(MAX_VELOCITY - MIN_VELOCITY) + (float)MIN_VELOCITY);
 		particleArray_h[i].velocity.y = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(MAX_VELOCITY - MIN_VELOCITY) + (float)MIN_VELOCITY);
@@ -386,9 +378,6 @@ void copyParticlesFromHostToDevice()
 	int size = NUMBER_OF_PARTICLES*sizeof(Particle);
 	cudaMalloc((void**)&particleArray_d, size);
 	cudaMemcpy(particleArray_d, particleArray_h, size, cudaMemcpyHostToDevice);
-
-	int colorMemSize = NUMBER_OF_PARTICLES * sizeof(float3);
-	cudaMemcpyToSymbol(constantMemColorArray, colorArray_h, colorMemSize);
 }
 
 // Copy Particles From Device To Host

@@ -4,7 +4,9 @@ typedef struct
 {
 	float3 position;
 	float3 velocity;
-	float3 color;
+	#ifdef USE_VBO
+		float3 color;
+	#endif
 	float3 collisionForce;
 	unsigned int id;
 } Particle;
