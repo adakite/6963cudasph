@@ -195,10 +195,10 @@ __device__ void updateCells(int id, Particle* particleArray, Cell* cellArray)
 }
 
 
-// Kernel Function
+// Kernel Functions
 #ifndef NO_DISPLAY
 	#ifdef USE_VBO
-		__global__ void particleKernel(float4* spheres, Particle* particleArray, Cell* cellArray, float deltaTime)
+		__global__ void particleKernel(float4* spheres, float3* colors, float3* normals, Particle* particleArray, Cell* cellArray, float deltaTime)
 	#else
 		__global__ void particleKernel(Particle* particleArray, Cell* cellArray, float deltaTime)
 	#endif
@@ -223,8 +223,27 @@ __device__ void updateCells(int id, Particle* particleArray, Cell* cellArray)
 
 		#ifndef NO_DISPLAY
 			#ifdef USE_VBO
-				makeSphere(spheres, id, particleArray[id].position.x, particleArray[id].position.y, particleArray[id].position.z, PARTICLE_RADIUS);
+				makeSphere(spheres, colors, normals, id, particleArray[id].position.x, particleArray[id].position.y, particleArray[id].position.z, PARTICLE_RADIUS, particleArray[id].color);
 			#endif
 		#endif
 	}
 }
+
+/*
+__global__ void colorParticleKernel(float3* colors)
+{
+	// Get id for current particle
+	unsigned int id = blockIdx.x* blockDim.x + threadIdx.x;
+	unsigned int offset = id * SPHERE_VERTICES_SIZE;
+
+	if(id < NUMBER_OF_PARTICLES)
+	{
+		for(unsigned int i = 0; i < SPHERE_VERTICES_SIZE; i++)
+		{
+			colors[offset + i].x = constantMemColorArray[id].x;
+			colors[offset + i].y = constantMemColorArray[id].y;
+			colors[offset + i].z = constantMemColorArray[id].z;
+		}
+	}
+}
+*/

@@ -29,7 +29,10 @@
 //#define THREAD_PER_CELL_COLLISIONS
 
 // Macro for not displaying graphics
-//#define NO_DISPLAY
+//define NO_DISPLAY
+
+// Macro for limiting the number of iterations
+//#define NUMBER_OF_ITERATIONS 1000
 
 // Constants, Display
 #define WINDOW_WIDTH 1024
@@ -37,6 +40,16 @@
 
 // Constants, Simulation
 const float deltaTime=0.005f;
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Device arrays
+////////////////////////////////////////////////////////////////////////////////
+
+// Constant Memory
+// Array for particle colors
+__constant__ float3* constantMemColorArray;
 
 
 
@@ -117,6 +130,8 @@ unsigned int drawTimer;
 // Variables, Display
 // Vertex buffer object
 GLuint vBuffer;
+GLuint cBuffer;
+GLuint nBuffer;
 // Mouse controls
 int mouse_old_x, mouse_old_y;
 int mouse_buttons = 0;
@@ -137,7 +152,7 @@ void initializeParticles();
 
 // Initialization, Display
 CUTBoolean initGL();
-void createVBO(GLuint* vbo);
+void createVBO(GLuint* vbo, bool useFloat4);
 void deleteVBO(GLuint* vbo);
 
 // Memory copy functions for CUDA
@@ -207,6 +222,10 @@ void initializeParticles()
 		colorArray_h[i].y = (rand() / ((unsigned)RAND_MAX + 1.0));
 		colorArray_h[i].z = (rand() / ((unsigned)RAND_MAX + 1.0));
 
+		particleArray_h[i].color.x = colorArray_h[i].x;
+		particleArray_h[i].color.y = colorArray_h[i].y;
+		particleArray_h[i].color.z = colorArray_h[i].z;
+
 		particleArray_h[i].velocity.x = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(MAX_VELOCITY - MIN_VELOCITY) + (float)MIN_VELOCITY);
 		particleArray_h[i].velocity.y = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(MAX_VELOCITY - MIN_VELOCITY) + (float)MIN_VELOCITY);
 		particleArray_h[i].velocity.z = ((rand() / ((unsigned)RAND_MAX + 1.0)) * (float)(MAX_VELOCITY - MIN_VELOCITY) + (float)MIN_VELOCITY);
@@ -268,10 +287,13 @@ CUTBoolean initGL()
     return CUTTrue;
 }
 
+/*
 // Create VBO
 // Creates a Vertex Buffer Object and sets the given pointer.
 // Vertex Buffer Object is registered with CUDA.
-void createVBO(GLuint* vbo)
+// If given true, Vertex Buffer Object is of size float4*NUMBER_OF_PARTICLES
+// Otherwise, Vertex Buffer Object is of size float3*NUMBER_OF_PARTICLES
+void createVBO(GLuint* vbo, bool useFloat4)
 {
     // create buffer object
     glGenBuffers( 1, vbo);
@@ -279,7 +301,15 @@ void createVBO(GLuint* vbo)
 
     // initialize buffer object
     //unsigned int size = NUMBER_OF_PARTICLES * SPHERE_VERTICES_SIZE * 4 * sizeof(float);
-    unsigned int size = NUMBER_OF_PARTICLES * sizeof(float4);
+    unsigned int size;
+    if(useFloat4)
+	{
+		size = NUMBER_OF_PARTICLES * sizeof(float4);
+	}
+    else
+    {
+    	size = NUMBER_OF_PARTICLES * sizeof(float3);
+    }
     glBufferData(GL_ARRAY_BUFFER, size, 0, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
@@ -288,6 +318,51 @@ void createVBO(GLuint* vbo)
 
     CUT_CHECK_ERROR_GL();
 }
+*/
+
+void createVBO(GLuint* vbo, GLuint* cbo,GLuint* nbo)
+{
+    // create buffer object
+    glGenBuffers( 1, vbo);
+    glBindBuffer( GL_ARRAY_BUFFER, *vbo);
+
+    // initialize buffer object
+    unsigned int size = NUMBER_OF_PARTICLES * SPHERE_VERTICES_SIZE * 4 * sizeof(float);
+    glBufferData( GL_ARRAY_BUFFER, size, 0, GL_DYNAMIC_DRAW);
+
+    glBindBuffer( GL_ARRAY_BUFFER, 0);
+
+    // register buffer object with CUDA
+    cudaGLRegisterBufferObject(*vbo);
+
+    // create buffer object
+	glGenBuffers( 1, cbo);
+	glBindBuffer( GL_ARRAY_BUFFER, *cbo);
+
+	// initialize buffer object
+	unsigned int sizec = NUMBER_OF_PARTICLES * SPHERE_VERTICES_SIZE * 3 * sizeof(float);
+	glBufferData( GL_ARRAY_BUFFER, sizec, 0, GL_DYNAMIC_DRAW);
+
+	glBindBuffer( GL_ARRAY_BUFFER, 0);
+
+	// register buffer object with CUDA
+	cudaGLRegisterBufferObject(*cbo);
+
+	// create buffer object
+	glGenBuffers( 1, nbo);
+	glBindBuffer( GL_ARRAY_BUFFER, *nbo);
+
+	// initialize buffer object
+	unsigned int sizen = NUMBER_OF_PARTICLES * SPHERE_VERTICES_SIZE * 3 * sizeof(float);
+	glBufferData( GL_ARRAY_BUFFER, sizen, 0, GL_DYNAMIC_DRAW);
+
+	glBindBuffer( GL_ARRAY_BUFFER, 0);
+
+	// register buffer object with CUDA
+	cudaGLRegisterBufferObject(*nbo);
+    CUT_CHECK_ERROR_GL();
+}
+
 
 // Delete VBO
 // Deletes a Vertex Buffer Object and resets the given pointer.
@@ -311,6 +386,9 @@ void copyParticlesFromHostToDevice()
 	int size = NUMBER_OF_PARTICLES*sizeof(Particle);
 	cudaMalloc((void**)&particleArray_d, size);
 	cudaMemcpy(particleArray_d, particleArray_h, size, cudaMemcpyHostToDevice);
+
+	int colorMemSize = NUMBER_OF_PARTICLES * sizeof(float3);
+	cudaMemcpyToSymbol(constantMemColorArray, colorArray_h, colorMemSize);
 }
 
 // Copy Particles From Device To Host
@@ -447,6 +525,7 @@ void display()
 
 	#ifdef USE_VBO
 		//Render from the vbo
+		/*
 		glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
 		glVertexPointer(4, GL_FLOAT, 0, 0);
 
@@ -454,6 +533,24 @@ void display()
 		glColor3f(1.0, 0.0, 0.0);
 		glDrawArrays(GL_POINTS, 0, NUMBER_OF_PARTICLES);
 		glDisableClientState(GL_VERTEX_ARRAY);
+		*/
+		glShadeModel(GL_SMOOTH);
+		glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
+		glVertexPointer(4, GL_FLOAT, 0, 0);
+
+		glBindBuffer(GL_ARRAY_BUFFER, cBuffer);
+		glColorPointer(3,GL_FLOAT,0,0);
+
+		glBindBuffer(GL_ARRAY_BUFFER, nBuffer);
+		glNormalPointer(GL_FLOAT, 0, 0);
+
+		glEnableClientState(GL_VERTEX_ARRAY);
+		glEnableClientState(GL_COLOR_ARRAY);
+		glEnableClientState (GL_NORMAL_ARRAY);
+
+		glDrawArrays(GL_SPHERE, 0, NUMBER_OF_PARTICLES*SPHERE_VERTICES_SIZE);
+		glDisableClientState(GL_VERTEX_ARRAY);
+
 	#else
 		// Draw the particles
 		for(int i=0; i<NUMBER_OF_PARTICLES; i++)
@@ -561,8 +658,12 @@ void runCuda()
 	#ifndef NO_DISPLAY
 		#ifdef USE_VBO
 			// Map OpenGL buffer object for writing from CUDA
-			float4 *dptr;
-			cudaGLMapBufferObject( (void**)&dptr, vBuffer);
+			float4 *vptr;
+			cudaGLMapBufferObject( (void**)&vptr, vBuffer);
+			float3 *cptr;
+			cudaGLMapBufferObject( (void**)&cptr, cBuffer);
+			float3 *nptr;
+			cudaGLMapBufferObject( (void**)&nptr, nBuffer);
 		#endif
 	#endif
 
@@ -585,7 +686,7 @@ void runCuda()
 
 	#ifndef NO_DISPLAY
 		#ifdef USE_VBO
-			particleKernel<<< particleGrid, particleBlock>>>(dptr, particleArray_d, cellArray_d, deltaTime);
+			particleKernel<<< particleGrid, particleBlock>>>(vptr, cptr, nptr, particleArray_d, cellArray_d, deltaTime);
 		#else
 			particleKernel<<< particleGrid, particleBlock>>>(particleArray_d, cellArray_d, deltaTime);
 		#endif
@@ -630,7 +731,17 @@ void runCuda()
 		#ifdef USE_VBO
 			// Unmap VBO from CUDA
 			cudaGLUnmapBufferObject(vBuffer);
+			cudaGLUnmapBufferObject(cBuffer);
+			cudaGLUnmapBufferObject(nBuffer);
 		#endif
+	#endif
+
+	#ifdef NUMBER_OF_ITERATIONS
+		if(iterations >= NUMBER_OF_ITERATIONS)
+		{
+			continueRunning = false;
+			exit(0);
+		}
 	#endif
 }
 
@@ -659,6 +770,17 @@ void runSimulation( int argc, char** argv)
 		glutMotionFunc(motion);
 	#endif
 
+	#ifndef NO_DISPLAY
+		#ifdef USE_VBO
+			/*// Create Vertex Buffer Object
+			createVBO(&vBuffer, true);
+			//createVBO(&cBuffer, false);
+			createVBO(&nBuffer, false);
+			*/
+			createVBO(&vBuffer, &cBuffer, &nBuffer);
+		#endif
+	#endif
+
     // Initialize simulation
     initializeCells();
     initializeParticles();
@@ -667,12 +789,7 @@ void runSimulation( int argc, char** argv)
     copyParticlesFromHostToDevice();
     copyCellsFromHostToDevice();
 
-	#ifndef NO_DISPLAY
-		#ifdef USE_VBO
-			// Create Vertex Buffer Object
-			createVBO(&vBuffer);
-		#endif
-	#endif
+
 
     // Initialize counter
     iterations = 0;
@@ -697,7 +814,7 @@ void runSimulation( int argc, char** argv)
 			glutMainLoop();
 		#endif
 	#else
-			while(true)
+			while(continueRunning)
 			{
 				runCuda();
 			}
